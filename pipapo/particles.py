@@ -123,8 +123,9 @@ class Particles:
             self._current_idx = 0
             raise StopIteration()
 
+        particle = self[self._current_idx]
         self._current_idx += 1
-        return self[self._current_idx - 1]
+        return particle
 
     def run_function(self, fun, add_as_field=False, field_name=None):
         result = []
