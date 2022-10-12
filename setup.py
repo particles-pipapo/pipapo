@@ -44,7 +44,7 @@ if system_current_version != REQUIRED_PYTHON_VERSION:
     )
     raise ImportError(message)
 
-# Packages useful for developing and documentation not needed to run QUEENS
+# Packages useful for developing
 DEVELOPER_EXTRAS = [
     "pylint>=2.12",
     "isort>=5.0",
