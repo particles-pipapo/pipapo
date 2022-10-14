@@ -1,9 +1,11 @@
-import numpy as np
-from pathlib import Path
-from pipapo.utils.vtk import dictionary_from_vtk_file, vtk_file_from_dictionary
-
-from pipapo.utils.csv import export_csv
 import warnings
+from pathlib import Path
+
+import numpy as np
+
+from pipapo.utils.bining import get_bounding_box
+from pipapo.utils.csv import export_csv
+from pipapo.utils.vtk import dictionary_from_vtk_file, vtk_file_from_dictionary
 
 
 class Particle:
@@ -18,6 +20,10 @@ class Particle:
         if add_as_field:
             if not field_name:
                 field_name = fun.__name__
+                if field_name == "<lambda>":
+                    raise NameError(
+                        "You are using a lambda function. Please add a name to the field you want to add with the keyword 'field_name'"
+                    )
             setattr(self, field_name, result)
 
         return result
@@ -41,21 +47,19 @@ class Particle:
         return string
 
 
-MANDOTORY_FIELDS = ["id", "position", "radius"]
+MANDATORY_FIELDS = ["id", "position", "radius"]
 
 
-class Particles:
+class ParticleContainer:
     def __init__(self, *field_names, **fields):
-        field_names = MANDOTORY_FIELDS + list(
-            set(field_names).difference(MANDOTORY_FIELDS)
+        field_names = MANDATORY_FIELDS + list(
+            (set(field_names).union(fields.keys())).difference(MANDATORY_FIELDS)
         )
-        self.field_names = []
+        self.field_names = list(field_names)
         for key in field_names:
             setattr(self, key, [])
-            self.field_names.append(key)
         for key, value in fields.items():
             setattr(self, key, value)
-            self.field_names.append(key)
 
         self._current_idx = 0
 
@@ -79,7 +83,7 @@ class Particles:
         raise ValueError(f"Different lengths between fields: {field_lengths}")
 
     def add_particle(self, new_particles):
-        if not isinstance(new_particles, (Particle, Particles)):
+        if not isinstance(new_particles, (Particle, ParticleContainer)):
             raise TypeError(
                 "new_particles must be of type 'Particle' or 'Particles' not %s"
                 % type(new_particles)
@@ -111,7 +115,7 @@ class Particles:
             return Particle(**new_dict)
 
         new_dict = {key: value[i] for key, value in self._items()}
-        return Particles(**new_dict)
+        return ParticleContainer(**new_dict)
 
     def __str__(self):
         string = "\npipapo particles set\n"
@@ -126,7 +130,7 @@ class Particles:
         return self.copy()
 
     def copy(self):
-        return Particles(**self.to_dict())
+        return ParticleContainer(**self.to_dict())
 
     def __next__(self):
         if self._current_idx >= len(self):
@@ -188,3 +192,64 @@ class Particles:
                     f"No 'radius' or 'diameter' found in {Path(file_path).resolve()}!"
                 )
         return cls(**dictionary)
+
+    def mean_of_field(self, field_name, **kwargs):
+        return np.mean(getattr(self, field_name), **kwargs)
+
+    def standard_deviation_of_field(self, field_name, **kwargs):
+        return np.std(getattr(self, field_name), **kwargs)
+
+    def histogram_of_field(self, field_name, **kwargs):
+        return np.histogram(getattr(self, field_name), **kwargs)
+
+    def where(self, condition, index_only=True):
+        indexes = np.where(condition)[0]
+        if index_only:
+            return indexes
+        else:
+            return self[indexes]
+
+    def in_box(self, box_dimensions, box_center=None, index_only=False):
+        def componentwise_in_box(
+            compoment, component_box_dimension, compoment_box_center
+        ):
+            left_side = compoment >= (
+                compoment_box_center - 0.5 * component_box_dimension
+            )
+            right_side = compoment <= (
+                compoment_box_center + 0.5 * component_box_dimension
+            )
+            return np.logical_and(left_side, right_side)
+
+        conditions = True
+        if box_center is None:
+            box_center = np.zeros(len(box_dimensions))
+        for particles_component, box_dimension, box_center_component in zip(
+            self.position.T, box_dimensions, box_center
+        ):
+            conditions = np.logical_and(
+                componentwise_in_box(
+                    particles_component, box_dimension, box_center_component
+                ),
+                conditions,
+            )
+
+        return self.where(conditions, index_only)
+
+    def add_field(self, field_name, field):
+        if not len(field) == len(self):
+            raise Exception(f"Dimension mismatch")
+
+        setattr(self, field_name, field)
+        self._add_field_name(field_name)
+
+    def bounding_box(self, by_position=False):
+        if by_position:
+            position = self.position
+        else:
+            position = self.position - self.radius
+            position = np.row_stack((position, self.position + self.radius))
+        return get_bounding_box(position)
+
+    def update_particle(self, particle):
+        pass

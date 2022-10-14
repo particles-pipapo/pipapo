@@ -1,1 +1,1 @@
-from .particles import Particle, Particles
+from .particles import Particle, ParticleContainer
