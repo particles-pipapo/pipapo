@@ -1,10 +1,9 @@
-import imp
 import pandas
+
 from .io import check_if_file_exist
 
 
 def export_csv(dictionary, file_path):
-    check_if_file_exist(file_path)
     labels = []
     data_arrays = []
     for label, data in dictionary.items():
@@ -18,3 +17,12 @@ def export_csv(dictionary, file_path):
 
     pd_dataframe = pandas.DataFrame.from_dict(dict(zip(labels, data_arrays)))
     pd_dataframe.to_csv(file_path, sep=",", index=False)
+
+
+def import_csv(file_path, **kwargs):
+    check_if_file_exist(file_path)
+    pandas_dataframe = pandas.read_csv(file_path, **kwargs)
+    dictionary = {}
+    for column in pandas_dataframe:
+        dictionary[column] = pandas_dataframe[column].to_numpy().reshape(-1, 1)
+    return dictionary

@@ -4,7 +4,8 @@ from pathlib import Path
 import numpy as np
 
 from pipapo.utils.bining import get_bounding_box
-from pipapo.utils.csv import export_csv
+from pipapo.utils.csv import export_csv, import_csv
+from pipapo.utils.dataclass import NumpyContainer
 from pipapo.utils.vtk import dictionary_from_vtk_file, vtk_file_from_dictionary
 
 
@@ -47,75 +48,22 @@ class Particle:
         return string
 
 
-MANDATORY_FIELDS = ["id", "position", "radius"]
+# Id is handeld by the dataclass
+MANDATORY_FIELDS = ["position", "radius"]
 
 
-class ParticleContainer:
+class ParticleContainer(NumpyContainer):
     def __init__(self, *field_names, **fields):
-        field_names = MANDATORY_FIELDS + list(
-            (set(field_names).union(fields.keys())).difference(MANDATORY_FIELDS)
-        )
-        self.field_names = list(field_names)
-        for key in field_names:
-            setattr(self, key, [])
-        for key, value in fields.items():
-            setattr(self, key, value)
-
-        self._current_idx = 0
-
-    def _add_field_name(self, name):
-        self.field_names.append(name)
-
-    def _values(self):
-        return [getattr(self, f) for f in self.field_names]
-
-    def _items(self):
-        return tuple(zip(self.field_names, self._values()))
-
-    def __len__(self):
-        lens = {len(v) for v in self._values()}
-        if len(lens) == 1:
-            return list(lens)[0]
-        elif len(lens) == 0:
-            return 0
-
-        field_lengths = ", ".join([f"{k}: {len(v)}" for k, v in self._items()])
-        raise ValueError(f"Different lengths between fields: {field_lengths}")
-
-    def add_particle(self, new_particles):
-        if not isinstance(new_particles, (Particle, ParticleContainer)):
-            raise TypeError(
-                "new_particles must be of type 'Particle' or 'Particles' not %s"
-                % type(new_particles)
-            )
-        if isinstance(new_particles, Particle):
-            new_particles = [new_particles]
-
-        new_id_start = len(self)
-        existing_fields = [key for key in self.field_names if key != "id"]
-        for i, particle in enumerate(new_particles):
-            for field in existing_fields:
-                new_value = getattr(particle, field)
-                self._append_to_field_array(field, new_value)
-
-            self._append_to_field_array("id", i + new_id_start)
-
-    def _append_to_field_array(self, field, new_value):
-        if isinstance(new_value, (int, float)):
-            new_value = np.array([new_value])
-        field_shape = getattr(self, field)[-1]
-        new_value = new_value.reshape(field_shape.shape).flatten()
-        setattr(self, field, np.row_stack((getattr(self, field), new_value)))
-
-    def __getitem__(self, i):
-        if isinstance(i, int):
-            if i > len(self):
-                raise IndexError(f"index {i} out of range for size {self.__len__()}")
-            new_dict = {key: value[i] for key, value in self._items()}
-            return Particle(**new_dict)
-
-        new_dict = {key: value[i] for key, value in self._items()}
-        return ParticleContainer(**new_dict)
+        if fields:
+            if not set(MANDATORY_FIELDS).intersection(list(fields.keys())) == set(
+                MANDATORY_FIELDS
+            ):
+                raise Exception(
+                    f"The mandatory fields {', '.join(MANDATORY_FIELDS)} were not provided."
+                )
+        else:
+            field_names = list(set(field_names).union(MANDATORY_FIELDS))
+        super().__init__(Particle, *field_names, **fields)
 
     def __str__(self):
         string = "\npipapo particles set\n"
@@ -123,49 +71,11 @@ class ParticleContainer:
         string += f"  with fields: {', '.join(list(self.field_names))}"
         return string
 
-    def __bool__(self):
-        return bool(len(self))
-
-    def __iter__(self):
-        return self.copy()
-
-    def copy(self):
-        return ParticleContainer(**self.to_dict())
-
-    def __next__(self):
-        if self._current_idx >= len(self):
-            raise StopIteration()
-
-        new_dict = {key: value[self._current_idx] for key, value in self._items()}
-        self._current_idx += 1
-        return Particle(**new_dict)
-
-    def __list__(self):
-        return [
-            Particle(**{key: value[i] for key, value in self._items()})
-            for i in range(len(self))
-        ]
-
-    def evaluate_function(self, fun, add_as_field=False, field_name=None):
-        result = []
-        for p in self:
-            result.append(fun(p))
-        result = np.array(result)
-        if add_as_field:
-            if not field_name:
-                field_name = fun.__name__
-            setattr(self, field_name, result)
-            self._add_field_name(field_name)
-        return result
-
     def volume_sum(self):
         return np.sum([p.volume() for p in self])
 
     def surface_sum(self):
         return np.sum([p.surface() for p in self])
-
-    def to_dict(self):
-        return dict(self._items())
 
     def export(self, file_path):
         if self:
@@ -182,34 +92,56 @@ class ParticleContainer:
             warnings.warn("Empty particles set, nothing was exported.")
 
     @classmethod
-    def from_vtk(cls, file_path):
+    def from_vtk(cls, file_path, radius_keyword="radius", diameter_keyword=None):
         dictionary = dictionary_from_vtk_file(file_path)
-        if not "radius" in dictionary.keys():
-            if "diameter" in dictionary.keys():
-                dictionary["radius"] = dictionary["diameter"] / 2
+        if not diameter_keyword:
+            if radius_keyword in dictionary.keys():
+                dictionary["radius"] = dictionary[radius_keyword]
             else:
                 raise KeyError(
-                    f"No 'radius' or 'diameter' found in {Path(file_path).resolve()}!"
+                    f"Field '{radius_keyword}' not found in {Path(file_path).resolve()}! Available fields are {', '.join(list(dictionary.keys()))}"
                 )
+        else:
+            if diameter_keyword in dictionary.keys():
+                dictionary["radius"] = dictionary[diameter_keyword] / 2
+            else:
+                raise KeyError(
+                    f"Field '{diameter_keyword}' not found in {Path(file_path).resolve()}! Available fields are {', '.join(list(dictionary.keys()))}"
+                )
+
         return cls(**dictionary)
 
-    def mean_of_field(self, field_name, **kwargs):
-        return np.mean(getattr(self, field_name), **kwargs)
-
-    def standard_deviation_of_field(self, field_name, **kwargs):
-        return np.std(getattr(self, field_name), **kwargs)
-
-    def histogram_of_field(self, field_name, **kwargs):
-        return np.histogram(getattr(self, field_name), **kwargs)
-
-    def where(self, condition, index_only=True):
-        indexes = np.where(condition)[0]
-        if index_only:
-            return indexes
+    @classmethod
+    def from_csv(
+        cls,
+        file_path,
+        radius_keyword="radius",
+        diameter_keyword=None,
+        position_keywords=["x", "y", "z"],
+    ):
+        dictionary = import_csv(file_path)
+        if not diameter_keyword:
+            if radius_keyword in dictionary.keys():
+                dictionary["radius"] = dictionary[radius_keyword]
+            else:
+                raise KeyError(
+                    f"Field '{radius_keyword}' not found in {Path(file_path).resolve()}! Available fields are {', '.join(list(dictionary.keys()))}"
+                )
         else:
-            return self[indexes]
+            if diameter_keyword in dictionary.keys():
+                dictionary["radius"] = dictionary[diameter_keyword] / 2
+            else:
+                raise KeyError(
+                    f"Field '{diameter_keyword}' not found in {Path(file_path).resolve()}! Available fields are {', '.join(list(dictionary.keys()))}"
+                )
+        position = np.column_stack([dictionary[k] for k in position_keywords])
+        dictionary["position"] = position
 
-    def in_box(self, box_dimensions, box_center=None, index_only=False):
+        for k in position_keywords:
+            dictionary.pop(k)
+        return cls(**dictionary)
+
+    def particle_center_in_box(self, box_dimensions, box_center=None, index_only=False):
         def componentwise_in_box(
             compoment, component_box_dimension, compoment_box_center
         ):
@@ -236,13 +168,6 @@ class ParticleContainer:
 
         return self.where(conditions, index_only)
 
-    def add_field(self, field_name, field):
-        if not len(field) == len(self):
-            raise Exception(f"Dimension mismatch")
-
-        setattr(self, field_name, field)
-        self._add_field_name(field_name)
-
     def bounding_box(self, by_position=False):
         if by_position:
             position = self.position
@@ -251,5 +176,26 @@ class ParticleContainer:
             position = np.row_stack((position, self.position + self.radius))
         return get_bounding_box(position)
 
-    def update_particle(self, particle):
-        pass
+    def update_particle(self, particle, id=None):
+        if not id:
+            try:
+                id = getattr(particle, "id")
+            except AttributeError as exc:
+                raise AttributeError(
+                    "id was not provided and no id could be found in the provided particle object"
+                ) from exc
+
+        super().update_by_id(particle, id)
+
+    def remove_particle_by_id(self, id, reset_ids=False):
+        super().remove_element_by_id(id, reset_ids=reset_ids)
+
+    def add_particle(self, new_particles):
+        super().add_element(new_particles)
+
+    def remove_field(self, field_name):
+        if field_name in (fields := MANDATORY_FIELDS + ["id"]):
+            raise Exception(
+                f"Mandatory fields: {', '.join(fields)} can not be deleted!"
+            )
+        super().remove_field(field_name)
