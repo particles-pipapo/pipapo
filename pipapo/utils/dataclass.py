@@ -1,3 +1,4 @@
+import dataclasses
 import warnings
 from collections.abc import Iterable
 from copy import deepcopy
@@ -6,11 +7,15 @@ import numpy as np
 
 
 class Container:
-    def __init__(self, default_intialization, *field_names, **fields):
+    def __init__(
+        self, default_intialization=None, datatype=None, *field_names, **fields
+    ):
         if bool(field_names) and bool(fields):
             raise Exception(
                 "You provided field_names and fields. You can only provide the one or the other!"
             )
+        if default_intialization is None:
+            default_intialization = []
 
         self.id = default_intialization
         self.field_names = ["id"]
@@ -18,13 +23,13 @@ class Container:
         if field_names:
             self.field_names = list(set(field_names).union(self.field_names))
             for key in field_names:
-                setattr(self, key, default_intialization)
+                setattr(self, key, default_intialization.copy())
 
         if fields:
             self.field_names = list(set(fields.keys()).union(self.field_names))
             len_array = []
             for key, value in fields.items():
-                setattr(self, key, value)
+                setattr(self, key, value.copy())
                 len_array.append(len(value))
             len_array = set(len_array)
             if len(len_array) != 1:
@@ -37,13 +42,17 @@ class Container:
                 raise ValueError(f"Dimension mismatch between fields! {array_lens}")
             if "id" not in fields:
                 self.id = np.arange(list(len_array)[0]).tolist()
-
         self.field_names.sort()
+        if datatype is None:
+            self._update_data_type()
+        else:
+            self.datatype = datatype
         self._current_idx = 0
 
     def _add_field_name(self, name):
         self.field_names.append(name)
         self.field_names.sort()
+        self._update_data_type()
 
     def _values(self):
         self.field_names.sort()
@@ -53,7 +62,7 @@ class Container:
         return tuple(zip(self.field_names, self._values()))
 
     def __len__(self):
-        lens = {len(v) for v in self._values()}
+        lens = {safe_len(v) for v in self._values()}
         if len(lens) == 1:
             return list(lens)[0]
         elif len(lens) == 0:
@@ -78,9 +87,11 @@ class Container:
         if self._current_idx >= len(self):
             raise StopIteration()
 
-        new_dict = {key: value[self._current_idx] for key, value in self._items()}
+        item = self.datatype(
+            **{key: value[self._current_idx] for key, value in self._items()}
+        )
         self._current_idx += 1
-        return new_dict
+        return item
 
     def add_field(self, field_name, field):
         if not len(field) == len(self):
@@ -97,6 +108,7 @@ class Container:
         else:
             self.field_names.remove(field_name)
             delattr(self, field_name)
+            self._update_data_type()
 
     def evaluate_function(self, fun, add_as_field=False, field_name=None):
         result = []
@@ -115,20 +127,22 @@ class Container:
     def __getitem__(self, i):
         if isinstance(i, int):
             if i > len(self):
-                raise IndexError(f"index {i} out of range for size {self.__len__()}")
-            new_dict = {key: value[i] for key, value in self._items()}
+                raise IndexError(f"Index {i} out of range for size {self.__len__()}")
+            item = self.datatype(**{key: value[i] for key, value in self._items()})
         elif isinstance(i, list):
-            new_dict = {key: [value[j] for j in i] for key, value in self._items()}
+            item = type(self)(
+                **{key: [value[j] for j in i] for key, value in self._items()}
+            )
         else:
-            new_dict = {key: value[i] for key, value in self._items()}
-        return new_dict
+            item = type(self)(**{key: value[i] for key, value in self._items()})
+        return item
 
     def _map_id_to_index(self, id):
         idx = np.where(np.array(self.id) == id)[0]
         if len(idx) > 1:
-            raise IndexError(f"More than one element found with id {id}.")
+            raise IndexError(f"More than one element found with id {int(id)}.")
         elif len(idx) == 0:
-            raise IndexError(f"Not element with id {id} found!")
+            raise IndexError(f"No element with id {int(id)} found!")
 
         return int(idx[0])
 
@@ -137,16 +151,15 @@ class Container:
 
     def get_by_id(self, ids):
         if isinstance(ids, int):
-            ids = [ids]
-        else:
-            try:
-                ids = list(ids)
-            except Exception as exc:
-                raise Exception("Could not convert ids to list.") from exc
+            return self[self._map_id_to_index(ids)]
+        elif not isinstance(ids, Iterable):
+            raise TypeError(
+                f"Ids need to be iterable (list, tuple, ...) or an int but which type {type(ids)} is not."
+            )
 
         indexes = []
         for idx in ids:
-            indexes.extend(self._map_id_to_index(idx))
+            indexes.append(self._map_id_to_index(idx))
 
         return self[indexes]
 
@@ -161,60 +174,65 @@ class Container:
 
     def __list__(self):
         return [
-            {key: value[i] for key, value in self._items()} for i in range(len(self))
+            self.datatype(
+                {key: value[i] for key, value in self._items()}
+                for i in range(len(self))
+            )
         ]
 
     def mean_of_field(self, field_name, **kwargs):
+        if not self._check_if_equal_length(field_name):
+            raise NotImplementedError(
+                "The mean computation is currently only avaible for (n,1)-arrays, but the length varies between elements."
+            )
         return np.mean(getattr(self, field_name), **kwargs)
 
     def standard_deviation_of_field(self, field_name, **kwargs):
+        if not self._check_if_equal_length(field_name):
+            raise NotImplementedError(
+                "The standard deviation computation is currently only avaible for (n,1)-array, but the length varies between elements."
+            )
         return np.std(getattr(self, field_name), **kwargs)
 
     def histogram_of_field(self, field_name, **kwargs):
+        if self._check_if_field_is_nested(field_name):
+            raise NotImplementedError(
+                "Histogram is currently only avaible for (n,1)-arrays."
+            )
         return np.histogram(getattr(self, field_name), **kwargs)
 
-    def add_element(self, new_elements):
-        if isinstance(new_elements, type(self)):
-            for element in new_elements:
-                self._add_element(element)
+    def _check_if_field_is_nested(self, field_name):
+        field = getattr(self, field_name)
+        return not all(isinstance(f, (float, int)) for f in field)
+
+    def _check_if_equal_length(self, field_name):
+        if self._check_if_field_is_nested(field_name):
+            lens = {safe_len(v) for v in getattr(self, field_name)}
+            return len(lens) == 1
         else:
-            self._add_element(new_elements)
+            return True
+
+    def add_element(self, new_elements):
+        if not isinstance(new_elements, (self.datatype, type(self))):
+            raise TypeError(
+                f"Argument must be of type '{self.datatype}' or '{type(self)}' not {type(new_elements)}"
+            )
+        for element in make_iterable(new_elements):
+            self._add_element(element)
 
     def _append_to_field_array(self, field, new_value):
         getattr(self, field).append(new_value)
 
     def _add_element(self, new_element):
-        new_id_start = max(self.id)
+        new_id_start = max(self.id) + 1
         existing_fields = [key for key in self.field_names if key != "id"]
         for field in existing_fields:
             new_value = getattr(new_element, field)
             self._append_to_field_array(field, new_value)
+        self._append_to_field_array("id", new_id_start)
 
-        self._append_to_field_array("id", new_id_start + 1)
-
-
-class NumpyContainer(Container):
-    def __init__(self, datatype, *field_names, **fields):
-        super().__init__(np.array([]), *field_names, **fields)
-        self.datatype = datatype
-        self.id = np.array(self.id).astype(int).reshape(-1, 1)
-        for field_name in self.field_names:
-            field = getattr(self, field_name)
-            if check_if_1d_np_array(field):
-                setattr(self, field_name, transform_to_2d_np_array(field))
-
-    def __next__(self):
-        return self.datatype(**super().__next__())
-
-    def __getitem__(self, i):
-        # Create the correct types
-        if isinstance(i, int):
-            return self.datatype(**super().__getitem__(i))
-        else:
-            return type(self)(**super().__getitem__(i))
-
-    def __list__(self):
-        return [self.datatype(**dictionary) for dictionary in super().__list__()]
+    def _update_data_type(self):
+        self.datatype = dataclasses.make_dataclass("DataContainer", self.field_names)
 
     def where(self, condition, index_only=True):
         indexes = np.where(condition)[0]
@@ -227,43 +245,52 @@ class NumpyContainer(Container):
         idx = self._map_id_to_index(id)
         for field in self.field_names:
             field_array = getattr(self, field)
-            setattr(self, field, np.delete(field_array, idx, 0))
+            setattr(self, field, self._remove_from_array_by_index(field_array, idx))
         if reset_ids:
             self.reset_ids()
+
+    def _remove_from_array_by_index(self, array, idx):
+        return array[:idx] + array[idx + 1 :]
+
+
+class NumpyContainer(Container):
+    def __init__(self, datatype=None, *field_names, **fields):
+        super().__init__(
+            np.array([]),
+            datatype,
+            *field_names,
+            **fields,
+        )
+        for field_name in self.field_names:
+            field = getattr(self, field_name)
+            setattr(self, field_name, transform_to_2d_np_array(field))
+        self.id = transform_to_2d_np_array(self.id)
+
+    def _remove_from_array_by_index(self, array, idx):
+        return np.delete(array, idx, 0)
 
     def _append_to_field_array(self, field, new_value):
         if isinstance(new_value, (int, float)):
             new_value = np.array([new_value])
+
         if len(getattr(self, field)):
-            field_shape = getattr(self, field)[-1]
-            new_value = new_value.reshape(field_shape.shape).flatten()
+            field_shape = getattr(self, field)[-1].shape
+            new_value = new_value.reshape(field_shape).flatten()
             setattr(self, field, np.row_stack((getattr(self, field), new_value)))
         else:
             setattr(self, field, np.atleast_2d(new_value))
-
-    def add_element(self, new_elements):
-        if not isinstance(new_elements, (self.datatype, type(self))):
-            raise TypeError(
-                f"Argument must be of type '{self.datatype}' or '{type(self)}' not {type(new_elements)}"
-            )
-        if isinstance(new_elements, self.datatype):
-            new_elements = [new_elements]
-
-        new_id_start = len(self)
-        existing_fields = [key for key in self.field_names if key != "id"]
-        for i, element in enumerate(new_elements):
-            for field in existing_fields:
-                new_value = getattr(element, field)
-                self._append_to_field_array(field, new_value)
-
-            self._append_to_field_array("id", i + new_id_start)
 
     def add_field(self, field_name, field):
         super().add_field(field_name, transform_to_2d_np_array(field))
 
     def reset_ids(self):
-        super().reset_ids()
-        self.id = transform_to_2d_np_array(self.id)
+        self.id = transform_to_2d_np_array(np.arange(len(self)))
+
+    def _check_if_equal_length(self, field_name):
+        return True
+
+    def _check_if_field_is_nested(self, field_name):
+        return getattr(self, field_name).shape[1] > 1
 
 
 def check_if_1d_np_array(array):
@@ -277,3 +304,18 @@ def transform_to_2d_np_array(array):
     if check_if_1d_np_array(array):
         array = array.reshape(-1, 1)
     return array
+
+
+def safe_len(obj):
+    if hasattr(obj, "__len__"):
+        return len(obj)
+    else:
+        return 1
+
+
+def make_iterable(obj):
+    if isinstance(obj, Iterable):
+        for o in obj:
+            yield o
+    else:
+        yield obj

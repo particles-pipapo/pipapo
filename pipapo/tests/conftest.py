@@ -13,8 +13,8 @@ def fixture_particle_1():
     return particle, (position, radius, radius_squared)
 
 
-@pytest.fixture(name="particles_1", scope="session")
-def fixture_particles_1():
+@pytest.fixture(name="particlecontainer_fixture", scope="session")
+def fixture_particlecontainer_fixture():
     np.random.seed(42)
     n_particles = 10
     position = np.random.randn(n_particles, 3)
