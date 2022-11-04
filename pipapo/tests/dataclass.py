@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 from pipapo import ParticleContainer
 from pipapo.utils.dataclass import Container, NumpyContainer
+from pipapo.utils.exceptions import ContainerError, LenError
 
 from .testing_utils import assert_equal, indexer
 
@@ -98,7 +99,7 @@ def test_intialization_empty():
 def test_intialization_fail():
     """Test if container is not initialized."""
     with pytest.raises(
-        Exception,
+        ContainerError,
         match="You provided field_names and fields. You can only provide the one or the other!",
     ):
         Container(None, None, "radius", position=[])
@@ -173,7 +174,7 @@ def test_len_failure(containers):
     container, _ = containers
     container.id = np.arange(11)
     with pytest.raises(
-        ValueError,
+        LenError,
         match="Different lengths between fields: id: 11, position: 10, radius: 10",
     ):
         len(container)
@@ -383,7 +384,7 @@ def test_reset_ids(containers):
 
 def test_update_by_id(containers):
     """Test update by id."""
-    container, (ids, radius, position, _) = containers
+    container, _ = containers
     new_entry = {"radius": 5, "position": [1, 2, 3]}
     container.update_by_id(new_entry, 2)
     new_entry["id"] = 2
@@ -391,7 +392,7 @@ def test_update_by_id(containers):
     reference = container.get_by_id(2)
     obtained = container.datatype(**new_entry)
 
-    for key in new_entry.keys():
+    for key in new_entry:
         assert assert_equal(getattr(reference, key), getattr(obtained, key))
 
 
@@ -527,11 +528,11 @@ def test_add_element_single_element(containers):
     assert assert_equal(container[0].position, container[-1].position)
 
 
-def test_remove_from_array_by_index(containers):
+def test_remove_from_field_by_index(containers):
     """Test if item is remove by index."""
     container, (ids, _, _, _) = containers
     idx = 5
-    obtained = container._remove_from_array_by_index(ids, idx)
+    obtained = container._remove_from_field_by_index(ids, idx)
     if isinstance(ids, list):
         reference = ids[:idx] + ids[idx + 1 :]
     else:
@@ -539,7 +540,7 @@ def test_remove_from_array_by_index(containers):
     assert_equal(obtained, reference)
 
 
-def test_element_by_id(containers):
+def test_remove_element_by_id(containers):
     """Test if element is removed from the container"""
     container, (ids, _, _, n_elements) = containers
     container.remove_element_by_id(ids[0])

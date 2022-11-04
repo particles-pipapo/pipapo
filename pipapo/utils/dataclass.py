@@ -1,17 +1,29 @@
+"""Dataclasses."""
 import dataclasses
 import warnings
 from collections.abc import Iterable
 from copy import deepcopy
 
 import numpy as np
+from pipapo.utils.exceptions import ContainerError, LenError
 
 
 class Container:
+    """Simple container."""
+
     def __init__(
         self, default_intialization=None, datatype=None, *field_names, **fields
     ):
+        """Initialize conatiner.
+
+        field_names or fields can be provided, but not both!
+        Args:
+            default_intialization (obj, optional): Initialization for the iterables. Defaults to
+            None.
+            datatype (obj, optional): Type of object this containter holds. Defaults to None.
+        """
         if bool(field_names) and bool(fields):
-            raise Exception(
+            raise ContainerError(
                 "You provided field_names and fields. You can only provide the one or the other!"
             )
         if default_intialization is None:
@@ -50,18 +62,43 @@ class Container:
         self._current_idx = 0
 
     def _add_field_name(self, name):
+        """Add field names to field_names attribute.
+
+        Args:
+            name (str): new field name
+        """
+        if not name.isidentifier():
+            raise NameError(
+                f"The provided name {name} is not a valid identifier! Remove spaces, leading"
+                " numbers and special characters!"
+            )
         self.field_names.append(name)
         self.field_names.sort()
         self._update_data_type()
 
     def _values(self):
+        """Values method. Similar to the values method of a dict.
+
+        Returns:
+            list: List of fields.
+        """
         self.field_names.sort()
         return [getattr(self, f) for f in self.field_names]
 
     def _items(self):
+        """Items method. Similar to the items method of a dict.
+
+        Returns:
+            tuple: Tuple consiting of names and field values
+        """
         return tuple(zip(self.field_names, self._values()))
 
     def __len__(self):
+        """Len mehtod.
+
+        Returns:
+            int: number of elements in the container.
+        """
         lens = {safe_len(v) for v in self._values()}
         if len(lens) == 1:
             return list(lens)[0]
@@ -69,21 +106,48 @@ class Container:
             return 0
 
         field_lengths = ", ".join([f"{k}: {len(v)}" for k, v in self._items()])
-        raise ValueError(f"Different lengths between fields: {field_lengths}")
+        raise LenError(f"Different lengths between fields: {field_lengths}")
 
     def __bool__(self):
+        """Boolean method.
+
+        Returns:
+            bool: true if the container contains a least one element
+        """
         return bool(len(self))
 
     def __iter__(self):
+        """Make the container an iterator.
+
+        Returns:
+            Container: a copy of the current container.
+        """
         return self.copy()
 
     def copy(self):
+        """Copy function.
+
+        Returns:
+            Container: Returns a copy of self.
+        """
         return deepcopy(self)
 
     def to_dict(self):
+        """Create dictionary from container.
+
+        Returns:
+            dict: dictionary with current description.
+        """
         return dict(self._items())
 
     def __next__(self):
+        """Next method.
+
+        Makes the container class a generator.
+
+        Returns:
+            obj: object of type self.datatype
+        """
         if self._current_idx >= len(self):
             raise StopIteration()
 
@@ -94,15 +158,27 @@ class Container:
         return item
 
     def add_field(self, field_name, field):
+        """Add field to container.
+
+        Args:
+            field_name (str): name of the new field
+            field (list): field values
+        """
         if not len(field) == len(self):
             raise Exception(
-                f"Dimension mismatch while adding new field. Current length is {len(self)} but the field you want to add has length {len(field)}"
+                f"Dimension mismatch while adding new field. Current length is {len(self)} but the"
+                f" field you want to add has length {len(field)}"
             )
 
-        setattr(self, field_name, field.copy())
         self._add_field_name(field_name)
+        setattr(self, field_name, field.copy())
 
     def remove_field(self, field_name):
+        """Remove field by name.
+
+        Args:
+            field_name (str): Field to be deleted.
+        """
         if not field_name in self.field_names:
             warnings.warn(f"Field {field_name} does not exist, nothing was deleted!")
         else:
@@ -111,25 +187,45 @@ class Container:
             self._update_data_type()
 
     def evaluate_function(self, fun, add_as_field=False, field_name=None):
+        """Evaluate function on container.
+
+        This method evaluates the function fun for every element. Define the argument of the
+        function is of type self.datatype.
+
+        Args:
+            fun (fun): Function to be evaluated
+            add_as_field (bool, optional): Should the result be added as field. Defaults to False.
+            field_name (str optional): Name of the field to be added.Defaults to None.
+        """
         result = []
-        for s in self:
-            result.append(fun(s))
+        for element in self:
+            result.append(fun(element))
         if add_as_field:
             if not field_name:
                 field_name = fun.__name__
                 if field_name == "<lambda>":
                     raise NameError(
-                        "You are using a lambda function. Please add a name to the field you want to add with the keyword 'field_name'"
+                        "You are using a lambda function. Please add a name to the field you want"
+                        " to add with the keyword 'field_name'"
                     )
             self.add_field(field_name, result)
         return result
 
     def __getitem__(self, i):
+        """Getitem method.
+
+        Args:
+            i (int, slice, iterable): Indexes to get the items
+
+        Returns:
+            self.datatype: If index i is an int
+            type(self): If index i is iterable or slice
+        """
         if isinstance(i, int):
             if i > len(self):
                 raise IndexError(f"Index {i} out of range for size {self.__len__()}")
             item = self.datatype(**{key: value[i] for key, value in self._items()})
-        elif isinstance(i, list):
+        elif isinstance(i, Iterable):
             item = type(self)(
                 **{key: [value[j] for j in i] for key, value in self._items()}
             )
@@ -138,6 +234,16 @@ class Container:
         return item
 
     def _map_id_to_index(self, id):
+        """Map id to index.
+
+        As the ids do not need to be continuous this helper method maps an id to its index.
+
+        Args:
+            id (int): Id of desired element
+
+        Returns:
+            int: index of element.
+        """
         idx = np.where(np.array(self.id) == id)[0]
         if len(idx) > 1:
             raise IndexError(f"More than one element found with id {int(id)}.")
@@ -147,14 +253,27 @@ class Container:
         return int(idx[0])
 
     def reset_ids(self):
+        """Reset ids to a continuous range."""
         self.id = np.arange(len(self)).tolist()
 
     def get_by_id(self, ids):
+        """Get elements by ids.
+
+        Basically a wrapper for __getitem__ based on ids instead of indexes.
+
+        Args:
+            ids (int, slice, iterable): Ids to get the items
+
+        Returns:
+            self.datatype: If ids is an int
+            type(self): If ids is iterable or slice
+        """
         if isinstance(ids, int):
             return self[self._map_id_to_index(ids)]
-        elif not isinstance(ids, Iterable):
+        elif not isinstance(ids, (Iterable, slice)):
             raise TypeError(
-                f"Ids need to be iterable (list, tuple, ...) or an int but which type {type(ids)} is not."
+                f"Ids need to be iterable (list, tuple, ...) or an int but which type {type(ids)}"
+                " is not."
             )
 
         indexes = []
@@ -164,6 +283,12 @@ class Container:
         return self[indexes]
 
     def update_by_id(self, element, id):
+        """Update particle by id.
+
+        Args:
+            element (self.datatype): Element to be updated.
+            id (int): Id of the element to be updated.
+        """
         idx = self._map_id_to_index(id)
 
         for field, value in element.items():
@@ -173,6 +298,11 @@ class Container:
             field_array[idx] = value
 
     def __list__(self):
+        """Create list of self.dataype elements from container.
+
+        Returns:
+            list: List consisting of self.datatype elements
+        """
         return [
             self.datatype(
                 {key: value[i] for key, value in self._items()}
@@ -180,32 +310,93 @@ class Container:
             )
         ]
 
-    def mean_of_field(self, field_name, **kwargs):
-        if not self._check_if_equal_length(field_name):
-            raise NotImplementedError(
-                "The mean computation is currently only avaible for (n,1)-arrays, but the length varies between elements."
-            )
-        return np.mean(getattr(self, field_name), **kwargs)
+    def _wrap_numpy(self, npfun, field_name, concatenate=False, **kwargs):
+        """Wrapper to evaluate numpy functions on fields.
 
-    def standard_deviation_of_field(self, field_name, **kwargs):
-        if not self._check_if_equal_length(field_name):
-            raise NotImplementedError(
-                "The standard deviation computation is currently only avaible for (n,1)-array, but the length varies between elements."
-            )
-        return np.std(getattr(self, field_name), **kwargs)
+        In case the array is concatenated no kwargs are passed as it becomes a 1d array.
+        Args:
+            npfun (fun): Numpy function to be evaluated on field
+            field_name (str): Field name
+            concatenate (bool, optional): If array is to be concatenated. Defaults to False.
 
-    def histogram_of_field(self, field_name, **kwargs):
-        if self._check_if_field_is_nested(field_name):
+        Returns:
+            npfun function call
+        """
+        field = getattr(self, field_name).copy()
+        if not self._check_if_equal_length(field_name):
+            if concatenate:
+                field = nested_flatten(field)
+            else:
+                raise NotImplementedError(
+                    f"The {npfun.__name__} computation is currently only avaible for (n,1)-arrays"
+                    ", but the length varies between elements."
+                )
+
+        return npfun(field, **kwargs)
+
+    def mean_of_field(self, field_name, concatenate=False, **kwargs):
+        """Compute mean on field
+
+        Args:
+            field_name (str): Field name
+            concatenate (bool, optional): If array is to be concatenated. Defaults to False.
+
+        Returns:
+            mean of field
+        """
+        return self._wrap_numpy(np.mean, field_name, concatenate=concatenate, **kwargs)
+
+    def standard_deviation_of_field(self, field_name, concatenate=False, **kwargs):
+        """Standard deviation of field.
+
+        Args:
+            field_name (str): Field name
+            concatenate (bool, optional): If array is to be concatenated. Defaults to False.
+
+        Returns:
+            standard deviation of field
+        """
+        return self._wrap_numpy(np.std, field_name, concatenate=concatenate, **kwargs)
+
+    def histogram_of_field(self, field_name, concatenate=False, **kwargs):
+        """Histogram of field.
+
+        Args:
+            field_name (str): Field name
+            concatenate (bool, optional): If array is to be concatenated. Defaults to False.
+
+        Returns:
+            Histogram of field
+        """
+        if self._check_if_field_is_nested(field_name) and not concatenate:
             raise NotImplementedError(
                 "Histogram is currently only avaible for (n,1)-arrays."
             )
-        return np.histogram(getattr(self, field_name), **kwargs)
+        return self._wrap_numpy(
+            np.histogram, field_name, concatenate=concatenate, **kwargs
+        )
 
     def _check_if_field_is_nested(self, field_name):
+        """Check if field is not 1d.
+
+        Args:
+            field_name (str): Field name to be checked.
+
+        Returns:
+            bool: True if field is not 1d
+        """
         field = getattr(self, field_name)
         return not all(isinstance(f, (float, int)) for f in field)
 
     def _check_if_equal_length(self, field_name):
+        """Check if elements of field have equal dimension.
+
+        Args:
+            field_name (str): Field name to be checked.
+
+        Returns:
+            bool: True if every element has the sam dimension.
+        """
         if self._check_if_field_is_nested(field_name):
             lens = {safe_len(v) for v in getattr(self, field_name)}
             return len(lens) == 1
@@ -213,17 +404,33 @@ class Container:
             return True
 
     def add_element(self, new_elements):
-        if not isinstance(new_elements, (self.datatype, type(self))):
-            raise TypeError(
-                f"Argument must be of type '{self.datatype}' or '{type(self)}' not {type(new_elements)}"
-            )
+        """Add one or multiple elements.
+
+        Args:
+            new_elements (self.datatype,iterable): Element(s) to be added.
+        """
         for element in make_iterable(new_elements):
-            self._add_element(element)
+            self._add_single_element(element)
 
-    def _append_to_field_array(self, field, new_value):
-        getattr(self, field).append(new_value)
+    def _append_to_field_array(self, field_name, new_value):
+        """Append values to field array.
 
-    def _add_element(self, new_element):
+        Args:
+            field_name (str): Field that is to be modified.
+            new_value (obj): Value to be added.
+        """
+        getattr(self, field_name).append(new_value)
+
+    def _add_single_element(self, new_element):
+        """Add a single element to self.
+
+        Args:
+            new_element (self.datatype): New element to be added.
+        """
+        if not isinstance(new_element, self.datatype):
+            raise TypeError(
+                f"Argument must be of type '{self.datatype}' not type '{type(new_element)}'!"
+            )
         new_id_start = max(self.id) + 1
         existing_fields = [key for key in self.field_names if key != "id"]
         for field in existing_fields:
@@ -232,9 +439,23 @@ class Container:
         self._append_to_field_array("id", new_id_start)
 
     def _update_data_type(self):
+        """Update self.datatype.
+
+        Only needed in case fields are added or removed.
+        """
         self.datatype = dataclasses.make_dataclass("DataContainer", self.field_names)
 
     def where(self, condition, index_only=True):
+        """Where method.
+
+        Args:
+            condition (nparray,list): Containing bools
+            index_only (bool, optional): Only returns the indexes. Defaults to True.
+
+        Returns:
+            np.ndarray: If only indexes are used
+            type(self): If elements are returned.
+        """
         indexes = np.where(condition)[0]
         if index_only:
             return indexes
@@ -242,19 +463,56 @@ class Container:
             return self[indexes]
 
     def remove_element_by_id(self, id, reset_ids=False):
+        """Remove elements by id.
+
+        Wraps around remove element with the correct ids.
+
+        Args:
+            id (int): Id of element to be removed.
+            reset_ids (bool, optional): Reset the ids. Defaults to False.
+        """
         idx = self._map_id_to_index(id)
-        for field in self.field_names:
-            field_array = getattr(self, field)
-            setattr(self, field, self._remove_from_array_by_index(field_array, idx))
+        self.remove_element(idx, reset_ids=reset_ids)
+
+    def remove_element(self, idx, reset_ids):
+        """Remove element by index.
+
+        Args:
+            idx (int,iterable): Indexes of elements to be removed.
+            reset_ids (bool, optional): Reset the ids. Defaults to False.
+        """
+        for field_name in self.field_names:
+            field_array = getattr(self, field_name)
+            setattr(
+                self, field_name, self._remove_from_field_by_index(field_array, idx)
+            )
         if reset_ids:
             self.reset_ids()
 
-    def _remove_from_array_by_index(self, array, idx):
-        return array[:idx] + array[idx + 1 :]
+    def _remove_from_field_by_index(self, field, idx):
+        """Remove entry from field.
+
+        Args:
+            field (obj): Field data.
+            idx (int): Index to be deleted.
+
+        Returns:
+            modified field.
+        """
+        return field[:idx] + field[idx + 1 :]
 
 
 class NumpyContainer(Container):
+    """Numpy container.
+
+    All field are numpy arrays."""
+
     def __init__(self, datatype=None, *field_names, **fields):
+        """Initialise container.
+
+        Args:
+            datatype (obj, optional): Type of elements. Defaults to None.
+        """
         super().__init__(
             np.array([]),
             datatype,
@@ -266,38 +524,91 @@ class NumpyContainer(Container):
             setattr(self, field_name, transform_to_2d_np_array(field))
         self.id = transform_to_2d_np_array(self.id)
 
-    def _remove_from_array_by_index(self, array, idx):
-        return np.delete(array, idx, 0)
+    def _remove_from_field_by_index(self, field, idx):
+        """Remove entry from field.
 
-    def _append_to_field_array(self, field, new_value):
+        Args:
+            field (obj): Field data.
+            idx (int): Index to be deleted.
+
+        Returns:
+            modified field.
+        """
+        return np.delete(field, idx, 0)
+
+    def _append_to_field_array(self, field_name, new_value):
+        """Append values to field array.
+
+        Args:
+            field_name (str): Field that is to be modified.
+            new_value (obj): Value to be added.
+        """
         if isinstance(new_value, (int, float)):
             new_value = np.array([new_value])
 
-        if len(getattr(self, field)):
-            field_shape = getattr(self, field)[-1].shape
+        if len(getattr(self, field_name)):
+            field_shape = getattr(self, field_name)[-1].shape
             new_value = new_value.reshape(field_shape).flatten()
-            setattr(self, field, np.row_stack((getattr(self, field), new_value)))
+            setattr(
+                self, field_name, np.row_stack((getattr(self, field_name), new_value))
+            )
         else:
-            setattr(self, field, np.atleast_2d(new_value))
+            setattr(self, field_name, np.atleast_2d(new_value))
 
     def add_field(self, field_name, field):
+        """Add field to container.
+
+        Args:
+            field_name (str): name of the new field
+            field (list): field values
+        """
         super().add_field(field_name, transform_to_2d_np_array(field))
 
     def reset_ids(self):
+        """Reset ids to a continuous range."""
         self.id = transform_to_2d_np_array(np.arange(len(self)))
 
     def _check_if_equal_length(self, field_name):
+        """We assume np.ndarrays are always of equal length
+
+        Returns:
+            bool: True
+        """
         return True
 
     def _check_if_field_is_nested(self, field_name):
+        """Check if field is 1d.
+
+        Args:
+            field_name (str): field_name
+
+        Returns:
+            bool: True if array is not 1d
+        """
         return getattr(self, field_name).shape[1] > 1
 
 
 def check_if_1d_np_array(array):
+    """Check if np.ndarray is 1d.
+
+    Args:
+        array (np.ndarray): Array to be checked
+
+    Returns:
+        bool: True if 1d
+    """
     return len(array.shape) == 1
 
 
 def transform_to_2d_np_array(array):
+    """Transform array to 2d.
+
+    Args:
+        array (np.ndarray): Array to be checked.
+
+    Returns:
+        np.ndarray: Transformed array.
+    """
     if isinstance(array, list):
         array = np.array(array)
 
@@ -307,6 +618,16 @@ def transform_to_2d_np_array(array):
 
 
 def safe_len(obj):
+    """Safe len function.
+
+    If attribute has no length method the default length is 1.
+
+    Args:
+        obj (obj): Object to be checked.
+
+    Returns:
+        int: Length of object
+    """
     if hasattr(obj, "__len__"):
         return len(obj)
     else:
@@ -314,8 +635,34 @@ def safe_len(obj):
 
 
 def make_iterable(obj):
+    """Make object iterable as generator.
+
+    Args:
+        obj (obj): object to make iteratble.
+
+    Yields:
+        values of obj
+    """
     if isinstance(obj, Iterable):
         for o in obj:
             yield o
     else:
         yield obj
+
+
+def nested_flatten(nested_list):
+    """Flatten nested lists.
+
+    Args:
+        nested_list (list): List of lists of lists...
+
+    Returns:
+        flatten list.
+    """
+    result = []
+    for item in nested_list:
+        if not isinstance(item, list):
+            result.append(item)
+        else:
+            result.extend(nested_flatten(item))
+    return result

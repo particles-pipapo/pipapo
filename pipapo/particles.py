@@ -5,7 +5,7 @@ import numpy as np
 
 from pipapo.utils.bining import get_bounding_box
 from pipapo.utils.csv import export_csv, import_csv
-from pipapo.utils.dataclass import NumpyContainer
+from pipapo.utils.dataclass import Container, NumpyContainer
 from pipapo.utils.vtk import dictionary_from_vtk_file, vtk_file_from_dictionary
 
 
@@ -199,3 +199,36 @@ class ParticleContainer(NumpyContainer):
                 f"Mandatory fields: {', '.join(fields)} can not be deleted!"
             )
         super().remove_field(field_name)
+
+    def get_contacts(self):
+        coordination_number = [0] * len(self)
+        contact_partners_ids = [[] for i in range(len(self))]
+        gaps = [[] for i in range(len(self))]
+
+        for i, (radius_i, position_i) in enumerate(zip(self.radius, self.position)):
+            for j, (radius_j, position_j) in enumerate(zip(self.radius, self.position)):
+                if j <= i:
+                    continue
+                radius_sum = radius_i + radius_j
+                distance = np.sqrt(np.sum((position_i - position_j) ** 2))
+                gap = distance - radius_sum
+                if gap < 0:
+                    coordination_number[i] += 1
+                    contact_partners_ids[i].append(j)
+                    gaps[i].append(gap)
+                    coordination_number[j] += 1
+                    contact_partners_ids[j].append(i)
+                    gaps[j].append(gap)
+        return ContactContainer(
+            coordination_number=coordination_number,
+            contact_partners_ids=contact_partners_ids,
+            gaps=gaps,
+        )
+
+
+class ContactContainer(Container):
+    def __init__(self, **fields):
+        super().__init__(self, **fields)
+
+    def get_isolated_particles_id(self):
+        return self.where(self.coordination_number == 0)
