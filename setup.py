@@ -46,7 +46,7 @@ if system_current_version != REQUIRED_PYTHON_VERSION:
 
 # Packages useful for developing
 DEVELOPER_EXTRAS = [
-    "pylint>=2.12",
+    "pylint>=2.15.9",
     "isort>=5.0",
     "black==22.3.0",
     "pre-commit",

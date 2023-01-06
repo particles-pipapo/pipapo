@@ -1,8 +1,16 @@
+"""Utils for binning the paricles."""
 import numpy as np
 
 
 def bin_particles(particles, box_dimensions, n_bins, box_center=np.zeros(3)):
+    """Bin the particles.
 
+    Args:
+        particles (ParticleContainer): Particles to be binned
+        box_dimensions (np.array): Dimension of binning box of the particles
+        n_bins (np.array): Number of bins per dimension
+        box_center (np.array, optional): Binning box center. Defaults to np.zeros(3).
+    """
     x_bins = np.linspace(
         -0.5 * box_dimensions[0] + box_center[0],
         0.5 * box_dimensions[0] + box_center[0],
@@ -27,10 +35,16 @@ def bin_particles(particles, box_dimensions, n_bins, box_center=np.zeros(3)):
     # Create a running index
     bin_id = x_bin * n_bins[2] * n_bins[1] + y_bin * n_bins[2] + z_bin
 
-    return bin_id
+    particles.add_field("bin_id", bin_id)
 
 
 def get_bounding_box(position, tol=1e-8):
+    """Get the bounding box from position.
+
+    Args:
+        position (np.array): Positions
+        tol (float, optional): Tolerance. Defaults to 1e-8.
+    """
     mins = np.min(position, axis=0)
     maxs = np.max(position, axis=0)
     center = 0.5 * (mins + maxs)
@@ -39,11 +53,22 @@ def get_bounding_box(position, tol=1e-8):
 
 
 def bin_bounding_box_by_n_bins(particles, n_bins):
+    """Bin the particles.
+
+    Args:
+        particles (ParticleContainer): Particles to be binned
+        n_bins (np.array): Number of bins per dimension
+    """
     center, lengths = get_bounding_box(particles.position)
-    return bin_particles(particles, lengths, n_bins, center)
+    bin_particles(particles, lengths, n_bins, center)
 
 
 def bin_bounding_box_by_max_radius(particles):
+    """Bin the particles based on maximal radius.
+
+    Args:
+        particles (ParticleContainer): Particles to be binned
+    """
     center, lengths = get_bounding_box(particles.position)
     max_radius = np.max(particles.radius)
     n_bins = (lengths // max_radius + 1).astype(int)

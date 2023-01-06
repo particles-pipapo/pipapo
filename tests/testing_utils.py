@@ -1,9 +1,11 @@
+"""Utils for tests."""
 from collections.abc import Iterable
 
 import numpy as np
 
 
 def assert_equal(a, b):
+    """Assert if a and b are equal."""
     if isinstance(a, np.ndarray) or isinstance(b, np.ndarray):
         np.testing.assert_array_equal(a, b)
         return True
@@ -12,6 +14,7 @@ def assert_equal(a, b):
 
 
 def assert_close(a, b, tol=1e-8):
+    """Assert if a and b are equal within tolerance."""
     if isinstance(a, np.ndarray) or isinstance(b, np.ndarray):
         np.testing.assert_allclose(a, b, atol=tol, rtol=0)
         return True
@@ -20,6 +23,7 @@ def assert_close(a, b, tol=1e-8):
 
 
 def indexer(field, idx, reshape=True):
+    """Index iterables based on list."""
     # Lists can not be indexed by lists
     if isinstance(idx, Iterable):
         result = [field[i] for i in idx]
@@ -37,4 +41,5 @@ def indexer(field, idx, reshape=True):
 
 
 def get_object_dict(obj):
+    """Get dictionary of object."""
     return obj.__dict__

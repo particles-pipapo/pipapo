@@ -29,7 +29,7 @@ class Container:
         if default_initialization is None:
             default_initialization = []
 
-        self.id = default_initialization
+        self.id = default_initialization  # pylint: disable=C0103
         self.field_names = ["id"]
 
         if field_names:
@@ -102,7 +102,8 @@ class Container:
         lens = {safe_len(v) for v in self._values()}
         if len(lens) == 1:
             return list(lens)[0]
-        elif len(lens) == 0:
+
+        if len(lens) == 0:
             return 0
 
         field_lengths = ", ".join([f"{k}: {len(v)}" for k, v in self._items()])
@@ -233,22 +234,23 @@ class Container:
             item = type(self)(**{key: value[i] for key, value in self._items()})
         return item
 
-    def _map_id_to_index(self, id):
+    def _map_id_to_index(self, element_id):
         """Map id to index.
 
         As the ids do not need to be continuous this helper method maps an id to its index.
 
         Args:
-            id (int): Id of desired element
+            element_id (int): Id of desired element
 
         Returns:
             int: index of element.
         """
-        idx = np.where(np.array(self.id) == id)[0]
+        idx = np.where(np.array(self.id) == element_id)[0]
         if len(idx) > 1:
-            raise IndexError(f"More than one element found with id {int(id)}.")
-        elif len(idx) == 0:
-            raise IndexError(f"No element with id {int(id)} found!")
+            raise IndexError(f"More than one element found with id {int(element_id)}.")
+
+        if len(idx) == 0:
+            raise IndexError(f"No element with id {int(element_id)} found!")
 
         return int(idx[0])
 
@@ -270,7 +272,8 @@ class Container:
         """
         if isinstance(ids, int):
             return self[self._map_id_to_index(ids)]
-        elif not isinstance(ids, (Iterable, slice)):
+
+        if not isinstance(ids, (Iterable, slice)):
             raise TypeError(
                 f"Ids need to be iterable (list, tuple, ...) or an int but which type {type(ids)}"
                 " is not."
@@ -282,14 +285,14 @@ class Container:
 
         return self[indexes]
 
-    def update_by_id(self, element, id):
+    def update_by_id(self, element, element_id):
         """Update particle by id.
 
         Args:
             element (self.datatype): Element to be updated.
-            id (int): Id of the element to be updated.
+            element_id (int): Id of the element to be updated.
         """
-        idx = self._map_id_to_index(id)
+        idx = self._map_id_to_index(element_id)
 
         for field, value in element.items():
             if field == "id":
@@ -400,8 +403,8 @@ class Container:
         if self._check_if_field_is_nested(field_name):
             lens = {safe_len(v) for v in getattr(self, field_name)}
             return len(lens) == 1
-        else:
-            return True
+
+        return True
 
     def add_element(self, new_elements):
         """Add one or multiple elements.
@@ -459,19 +462,19 @@ class Container:
         indexes = np.where(condition)[0]
         if index_only:
             return indexes
-        else:
-            return self[indexes]
 
-    def remove_element_by_id(self, id, reset_ids=False):
+        return self[indexes]
+
+    def remove_element_by_id(self, element_id, reset_ids=False):
         """Remove elements by id.
 
         Wraps around remove element with the correct ids.
 
         Args:
-            id (int): Id of element to be removed.
+            element_id (int): Id of element to be removed.
             reset_ids (bool, optional): Reset the ids. Defaults to False.
         """
-        idx = self._map_id_to_index(id)
+        idx = self._map_id_to_index(element_id)
         self.remove_element(idx, reset_ids=reset_ids)
 
     def remove_element(self, idx, reset_ids=False):
@@ -630,8 +633,8 @@ def safe_len(obj):
     """
     if hasattr(obj, "__len__"):
         return len(obj)
-    else:
-        return 1
+
+    return 1
 
 
 def make_iterable(obj):
@@ -644,8 +647,8 @@ def make_iterable(obj):
         values of obj
     """
     if isinstance(obj, Iterable):
-        for o in obj:
-            yield o
+        for object_item in obj:
+            yield object_item
     else:
         yield obj
 

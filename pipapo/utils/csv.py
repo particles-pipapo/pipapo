@@ -1,9 +1,16 @@
+"""Csv utils."""
 import pandas
 
-from .io import check_if_file_exist
+from pipapo.utils.io import check_if_file_exist
 
 
 def export_csv(dictionary, file_path):
+    """Export dictionary to csv.
+
+    Args:
+        dictionary (dict): Container dict
+        file_path (str): File path to be stored at.
+    """
     labels = []
     data_arrays = []
     for label, data in dictionary.items():
@@ -20,6 +27,14 @@ def export_csv(dictionary, file_path):
 
 
 def import_csv(file_path, **kwargs):
+    """Import dictionary from csv.
+
+    Args:
+        file_path (str): Path to the csv file.
+
+    Returns:
+        dictionary (dict): Container dict
+    """
     check_if_file_exist(file_path)
     pandas_dataframe = pandas.read_csv(file_path, **kwargs)
     dictionary = {}
