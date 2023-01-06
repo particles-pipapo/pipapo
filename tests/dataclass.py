@@ -8,7 +8,7 @@ from .testing_utils import assert_equal, indexer
 
 
 @pytest.fixture(name="container_1")
-def fixture_containter_1():
+def fixture_container_1():
     """Container fixture."""
     np.random.seed(42)
     n_elements = 10
@@ -21,7 +21,7 @@ def fixture_containter_1():
 
 
 @pytest.fixture(name="container_2")
-def fixture_containter_2():
+def fixture_container_2():
     """Numpy container fixture."""
     np.random.seed(42)
     n_elements = 10
@@ -34,7 +34,7 @@ def fixture_containter_2():
 
 
 @pytest.fixture(name="container_3")
-def fixture_containter_3():
+def fixture_container_3():
     """Particle container fixture."""
     np.random.seed(42)
     n_elements = 10
@@ -59,13 +59,13 @@ def fixture_containers(request, container_1, container_2, container_3):
 # dataclass only
 @pytest.mark.parametrize("method", ["mean_of_field", "standard_deviation_of_field"])
 def test_method_of_field_failure_due_to_shape(container_1, method):
-    """Raise exception in case dimension is not consitent."""
+    """Raise exception in case dimension is not consistent."""
     container, _ = container_1
     container.radius[0] = [1, 2, 3]
     method = getattr(container, method)
     with pytest.raises(
         NotImplementedError,
-        match="computation is currently only avaible for",
+        match="computation is currently only available for",
     ):
         method("radius")
 
@@ -89,14 +89,14 @@ def test_if_equal_length(container_1, field):
     assert container._check_if_equal_length(field_name) == reference
 
 
-def test_intialization_empty():
+def test_initialization_empty():
     """Test if container is initialized."""
     container = Container()
     assert container.field_names == ["id"]
     assert container._current_idx == 0
 
 
-def test_intialization_fail():
+def test_initialization_fail():
     """Test if container is not initialized."""
     with pytest.raises(
         ContainerError,
@@ -105,7 +105,7 @@ def test_intialization_fail():
         Container(None, None, "radius", position=[])
 
 
-def test_container_intialization_id_creation():
+def test_container_initialization_id_creation():
     """Assert if ids are initialized."""
     container = Container(radius=np.ones(10).tolist())
     assert assert_equal(container.id, np.arange(10).tolist())
@@ -374,12 +374,12 @@ def test_reset_ids(containers):
     """Test if ids are reset correctly."""
     container, (_, _, _, n_elements) = containers
     container.reset_ids()
-    reseted_ids = np.arange(n_elements)
+    reset_ids = np.arange(n_elements)
     if isinstance(container.id, list):
-        reseted_ids = reseted_ids.tolist()
+        reset_ids = reset_ids.tolist()
     else:
-        reseted_ids = reseted_ids.reshape(-1, 1)
-    assert assert_equal(container.id, reseted_ids)
+        reset_ids = reset_ids.reshape(-1, 1)
+    assert assert_equal(container.id, reset_ids)
 
 
 def test_update_by_id(containers):
@@ -469,7 +469,7 @@ def test_histogram_of_field_failure_due_to_shape(containers):
     container, _ = containers
     with pytest.raises(
         NotImplementedError,
-        match="Histogram is currently only avaible for",
+        match="Histogram is currently only available for",
     ):
         container.histogram_of_field("position")
 

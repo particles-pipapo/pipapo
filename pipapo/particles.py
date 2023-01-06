@@ -48,7 +48,7 @@ class Particle:
         return string
 
 
-# Id is handeld by the dataclass
+# Id is handled by the dataclass
 MANDATORY_FIELDS = ["position", "radius"]
 
 

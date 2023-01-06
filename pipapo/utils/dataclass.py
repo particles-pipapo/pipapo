@@ -12,30 +12,30 @@ class Container:
     """Simple container."""
 
     def __init__(
-        self, default_intialization=None, datatype=None, *field_names, **fields
+        self, default_initialization=None, datatype=None, *field_names, **fields
     ):
-        """Initialize conatiner.
+        """Initialize container.
 
         field_names or fields can be provided, but not both!
         Args:
-            default_intialization (obj, optional): Initialization for the iterables. Defaults to
+            default_initialization (obj, optional): Initialization for the iterables. Defaults to
             None.
-            datatype (obj, optional): Type of object this containter holds. Defaults to None.
+            datatype (obj, optional): Type of object this container holds. Defaults to None.
         """
         if bool(field_names) and bool(fields):
             raise ContainerError(
                 "You provided field_names and fields. You can only provide the one or the other!"
             )
-        if default_intialization is None:
-            default_intialization = []
+        if default_initialization is None:
+            default_initialization = []
 
-        self.id = default_intialization
+        self.id = default_initialization
         self.field_names = ["id"]
 
         if field_names:
             self.field_names = list(set(field_names).union(self.field_names))
             for key in field_names:
-                setattr(self, key, default_intialization.copy())
+                setattr(self, key, default_initialization.copy())
 
         if fields:
             self.field_names = list(set(fields.keys()).union(self.field_names))
@@ -222,7 +222,7 @@ class Container:
             type(self): If index i is iterable or slice
         """
         if isinstance(i, int):
-            if abs(i) > len(self):
+            if i >= len(self) or i < -len(self):
                 raise IndexError(f"Index {i} out of range for size {self.__len__()}")
             item = self.datatype(**{key: value[i] for key, value in self._items()})
         elif isinstance(i, Iterable):
@@ -298,7 +298,7 @@ class Container:
             field_array[idx] = value
 
     def __list__(self):
-        """Create list of self.dataype elements from container.
+        """Create list of self.datatype elements from container.
 
         Returns:
             list: List consisting of self.datatype elements
@@ -328,7 +328,7 @@ class Container:
                 field = nested_flatten(field)
             else:
                 raise NotImplementedError(
-                    f"The {npfun.__name__} computation is currently only avaible for (n,1)-arrays"
+                    f"The {npfun.__name__} computation is currently only available for (n,1)-arrays"
                     ", but the length varies between elements."
                 )
 
@@ -449,7 +449,7 @@ class Container:
         """Where method.
 
         Args:
-            condition (nparray,list): Containing bools
+            condition (np.array,list): Containing booleans
             index_only (bool, optional): Only returns the indexes. Defaults to True.
 
         Returns:
@@ -638,7 +638,7 @@ def make_iterable(obj):
     """Make object iterable as generator.
 
     Args:
-        obj (obj): object to make iteratble.
+        obj (obj): object to make iterable.
 
     Yields:
         values of obj

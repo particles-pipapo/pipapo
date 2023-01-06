@@ -115,7 +115,7 @@ def test_export_failure(tmp_path, particlecontainer_fixture):
 
 
 def test_bounding_box_position(particlecontainer_fixture):
-    """Test bounding box by positon."""
+    """Test bounding box by position."""
     particles, _ = particlecontainer_fixture
     center, lengths = particles.bounding_box(by_position=True)
     lower_bounds_obtained = center - lengths * 0.5

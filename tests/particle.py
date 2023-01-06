@@ -6,7 +6,7 @@ from .testing_utils import assert_equal
 
 
 def eval_function_example(particle):
-    """Nonlinear example function with particle arguements."""
+    """Nonlinear example function with particle arguments."""
     return eval_function_example_args(particle.radius, particle.position)
 
 
@@ -16,7 +16,7 @@ def eval_function_example_args(radius, position):
 
 
 def test_particle_init(particle_1):
-    """Test particle intialization."""
+    """Test particle initialization."""
     particle, (position, radius, radius_squared) = particle_1
     assert isinstance(particle, Particle)
     assert assert_equal(particle.position, position)
