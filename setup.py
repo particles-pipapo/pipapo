@@ -34,7 +34,7 @@ def read_requirements(fname):
 
 
 # Exit the installation process in case of incompatibility of the python version
-REQUIRED_PYTHON_VERSION = "3.8"
+REQUIRED_PYTHON_VERSION = "3.10"
 system_current_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
 
 if system_current_version != REQUIRED_PYTHON_VERSION:

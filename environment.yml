@@ -1,4 +1,4 @@
 name: pipapo
 dependencies:
-  - python==3.8
+  - python==3.10
   - pip

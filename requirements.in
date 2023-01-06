@@ -3,3 +3,4 @@ jax
 jaxlib
 pathlib
 pandas
+pytest

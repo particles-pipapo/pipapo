@@ -3,10 +3,10 @@ from pathlib import Path
 
 import numpy as np
 
-from pipapo.utils.bining import get_bounding_box
+from pipapo.utils.binning import get_bounding_box
 from pipapo.utils.csv import export_csv, import_csv
 from pipapo.utils.dataclass import Container, NumpyContainer
-from pipapo.utils.vtk import dictionary_from_vtk_file, vtk_file_from_dictionary
+from pipapo.utils.vtk import import_vtk, export_vtk
 
 
 class Particle:
@@ -39,7 +39,7 @@ class Particle:
     def surface(self, add_as_field=False):
         surface_sphere = lambda p: 4 * np.pi * p.radius * p.radius
         return self.evaluate_function(
-            surface_sphere, add_as_field=True, field_name="surface"
+            surface_sphere, add_as_field=add_as_field, field_name="surface"
         )
 
     def __str__(self):
@@ -81,7 +81,7 @@ class ParticleContainer(NumpyContainer):
         if self:
             file_path = Path(file_path)
             if file_path.suffix == ".vtk":
-                vtk_file_from_dictionary(self.to_dict(), file_path)
+                export_vtk(self.to_dict(), file_path)
             elif file_path.suffix == ".csv":
                 export_csv(self.to_dict(), file_path)
             else:
@@ -93,7 +93,7 @@ class ParticleContainer(NumpyContainer):
 
     @classmethod
     def from_vtk(cls, file_path, radius_keyword="radius", diameter_keyword=None):
-        dictionary = dictionary_from_vtk_file(file_path)
+        dictionary = import_vtk(file_path)
         if not diameter_keyword:
             if radius_keyword in dictionary.keys():
                 dictionary["radius"] = dictionary[radius_keyword]
@@ -143,13 +143,13 @@ class ParticleContainer(NumpyContainer):
 
     def particle_center_in_box(self, box_dimensions, box_center=None, index_only=False):
         def componentwise_in_box(
-            compoment, component_box_dimension, compoment_box_center
+            component, component_box_dimension, component_box_center
         ):
-            left_side = compoment >= (
-                compoment_box_center - 0.5 * component_box_dimension
+            left_side = component >= (
+                component_box_center - 0.5 * component_box_dimension
             )
-            right_side = compoment <= (
-                compoment_box_center + 0.5 * component_box_dimension
+            right_side = component <= (
+                component_box_center + 0.5 * component_box_dimension
             )
             return np.logical_and(left_side, right_side)
 

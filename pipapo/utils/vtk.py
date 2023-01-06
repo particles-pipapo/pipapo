@@ -56,11 +56,11 @@ def polydata_to_dictionary(polydata):
     return dictionary
 
 
-def dictionary_from_vtk_file(file_path):
+def import_vtk(file_path):
     polydata = import_polydata(file_path)
     return polydata_to_dictionary(polydata)
 
 
-def vtk_file_from_dictionary(dictionary, file_path):
+def export_vtk(dictionary, file_path):
     polydata = dictionary_to_polydata(dictionary)
     export_polydata(polydata, file_path)

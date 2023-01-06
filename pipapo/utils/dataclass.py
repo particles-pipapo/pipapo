@@ -89,12 +89,12 @@ class Container:
         """Items method. Similar to the items method of a dict.
 
         Returns:
-            tuple: Tuple consiting of names and field values
+            tuple: Tuple consisting of names and field values
         """
         return tuple(zip(self.field_names, self._values()))
 
     def __len__(self):
-        """Len mehtod.
+        """Len method.
 
         Returns:
             int: number of elements in the container.
@@ -222,7 +222,7 @@ class Container:
             type(self): If index i is iterable or slice
         """
         if isinstance(i, int):
-            if i > len(self):
+            if abs(i) > len(self):
                 raise IndexError(f"Index {i} out of range for size {self.__len__()}")
             item = self.datatype(**{key: value[i] for key, value in self._items()})
         elif isinstance(i, Iterable):
@@ -370,7 +370,7 @@ class Container:
         """
         if self._check_if_field_is_nested(field_name) and not concatenate:
             raise NotImplementedError(
-                "Histogram is currently only avaible for (n,1)-arrays."
+                "Histogram is currently only available for (n,1)-arrays."
             )
         return self._wrap_numpy(
             np.histogram, field_name, concatenate=concatenate, **kwargs
@@ -395,7 +395,7 @@ class Container:
             field_name (str): Field name to be checked.
 
         Returns:
-            bool: True if every element has the sam dimension.
+            bool: True if every element has the same dimension.
         """
         if self._check_if_field_is_nested(field_name):
             lens = {safe_len(v) for v in getattr(self, field_name)}
@@ -474,7 +474,7 @@ class Container:
         idx = self._map_id_to_index(id)
         self.remove_element(idx, reset_ids=reset_ids)
 
-    def remove_element(self, idx, reset_ids):
+    def remove_element(self, idx, reset_ids=False):
         """Remove element by index.
 
         Args:
