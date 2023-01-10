@@ -150,6 +150,7 @@ class Container:
             obj: object of type self.datatype
         """
         if self._current_idx >= len(self):
+            self._current_idx = 0
             raise StopIteration()
 
         item = self.datatype(
@@ -517,8 +518,8 @@ class NumpyContainer(Container):
             datatype (obj, optional): Type of elements. Defaults to None.
         """
         super().__init__(
-            np.array([]),
-            datatype,
+            default_initialization=np.array([]),
+            datatype=datatype,
             *field_names,
             **fields,
         )
@@ -590,6 +591,21 @@ class NumpyContainer(Container):
         """
         return getattr(self, field_name).shape[1] > 1
 
+    def evaluate_function(self, fun, add_as_field=False, field_name=None):
+        """Evaluate function on container.
+
+        This method evaluates the function fun for every element. Define the argument of the
+        function is of type self.datatype.
+
+        Args:
+            fun (fun): Function to be evaluated
+            add_as_field (bool, optional): Should the result be added as field. Defaults to False.
+            field_name (str optional): Name of the field to be added.Defaults to None.
+        """
+        return transform_to_2d_np_array(
+            super().evaluate_function(fun, add_as_field, field_name)
+        )
+
 
 def check_if_1d_np_array(array):
     """Check if np.ndarray is 1d.
@@ -620,6 +636,18 @@ def transform_to_2d_np_array(array):
     return array
 
 
+def has_len(obj):
+    """Checks if obj has len method.
+
+    Args:
+        obj (obj): object to be checked
+
+    Returns:
+        bool: True if has len method
+    """
+    return hasattr(obj, "__len__")
+
+
 def safe_len(obj):
     """Safe len function.
 
@@ -631,7 +659,7 @@ def safe_len(obj):
     Returns:
         int: Length of object
     """
-    if hasattr(obj, "__len__"):
+    if has_len(obj):
         return len(obj)
 
     return 1

@@ -6,7 +6,7 @@ import numpy as np
 
 from pipapo.utils.binning import get_bounding_box
 from pipapo.utils.csv import export_csv, import_csv
-from pipapo.utils.dataclass import Container, NumpyContainer
+from pipapo.utils.dataclass import Container, NumpyContainer, has_len
 from pipapo.utils.vtk import import_vtk, export_vtk
 
 
@@ -21,8 +21,11 @@ class Particle:
             radius (float): Particle radius
         """
         self.position = position
-        self.radius = radius
+        self.radius = float(radius)
         for key, value in fields.items():
+            if has_len(value) and len(value) == 1:
+                value = value[0]
+
             setattr(self, key, value)
 
     def evaluate_function(self, fun, add_as_field=False, field_name=None):
@@ -118,7 +121,7 @@ class ParticleContainer(NumpyContainer):
                 )
         else:
             field_names = list(set(field_names).union(MANDATORY_FIELDS))
-        super().__init__(Particle, *field_names, **fields)
+        super().__init__(datatype=Particle, *field_names, **fields)
 
     def __str__(self):
         """Particle container descriptions."""
@@ -373,13 +376,14 @@ class ParticleContainer(NumpyContainer):
             gaps=gaps,
         )
 
+    def _update_data_type(self):
+        """Needs to be overwritten."""
+
 
 class ContactContainer(Container):
     """Container for contact data."""
 
-    def __init__(
-        self, coordination_number=None, contact_partners_ids=None, gaps=None, **fields
-    ):
+    def __init__(self, **fields):
         """Initialise contact container.
 
         Args:
@@ -389,9 +393,6 @@ class ContactContainer(Container):
             gaps (list, optional): Gaps for each contact pair. Defaults to None.
         """
         super().__init__(self, **fields)
-        self.coordination_number = coordination_number
-        self.contact_partners_ids = contact_partners_ids
-        self.gaps = gaps
 
     def get_isolated_particles_id(self):
         """Array with isolated particles."""
