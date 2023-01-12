@@ -3,11 +3,12 @@ import warnings
 from pathlib import Path
 
 import numpy as np
+import pyvista as pv
 
 from pipapo.utils.binning import get_bounding_box
 from pipapo.utils.csv import export_csv, import_csv
 from pipapo.utils.dataclass import Container, NumpyContainer, has_len
-from pipapo.utils.vtk import import_vtk, export_vtk
+from pipapo.utils.vtk import export_vtk, import_vtk
 
 
 class Particle:
@@ -156,7 +157,7 @@ class ParticleContainer(NumpyContainer):
         """
         if self:
             file_path = Path(file_path)
-            if file_path.suffix in [".vtk",".vtp"]:
+            if file_path.suffix in [".vtk", ".vtp"]:
                 export_vtk(self.to_dict(), file_path)
             elif file_path.suffix == ".csv":
                 export_csv(self.to_dict(), file_path)
@@ -379,6 +380,38 @@ class ParticleContainer(NumpyContainer):
     def _update_data_type(self):
         """Needs to be overwritten."""
 
+    def get_pv_spheres(self):
+        """Get pyvista spheres.
+
+        Returns:
+            list: List of all the pyvista spheres
+        """
+        spheres = []
+        for i in range(len(self)):
+            spheres.append(pv.Sphere(self.radius[i], self.position[i])) # pylint: disable=E1136
+        return spheres
+
+    def plot(self, color="green", pv_plotter=None, show=True):
+        """Plot spheres.
+
+        Args:
+            color (str, optional): Color of the particles. Defaults to "green".
+            pv_plotter (pv.Plotter, optional): Plotter object to plot. Defaults to None.
+            show (bool, optional): Open the plotting window. Defaults to True.
+
+        Returns:
+            pv.Plotter: Plotter object
+        """
+        if not pv_plotter:
+            pv_plotter = pv.Plotter()
+
+        for sphere in self.get_pv_spheres():
+            pv_plotter.add_mesh(sphere, color=color)
+
+        if show:
+            pv_plotter.show()
+        return pv_plotter
+
 
 class ContactContainer(Container):
     """Container for contact data."""
@@ -396,4 +429,4 @@ class ContactContainer(Container):
 
     def get_isolated_particles_id(self):
         """Array with isolated particles."""
-        return self.where(self.coordination_number == 0)
+        return self.where(self.coordination_number == 0)  # pylint: disable=E1101
