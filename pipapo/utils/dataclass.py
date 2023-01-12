@@ -518,8 +518,8 @@ class NumpyContainer(Container):
             datatype (obj, optional): Type of elements. Defaults to None.
         """
         super().__init__(
-            default_initialization=np.array([]),
-            datatype=datatype,
+            np.array([]),
+            datatype,
             *field_names,
             **fields,
         )

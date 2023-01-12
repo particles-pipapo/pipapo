@@ -226,8 +226,11 @@ def test_add_field(containers):
     # check that field is copied!
     assert id(container.field_3) != id(field_3)
 
+    # For particle containers the type does not change
+    particle_factor=isinstance(container, ParticleContainer)
+    
     # check that datatype changed!
-    assert new_datatype != original_datatype
+    assert (new_datatype != original_datatype) ^ particle_factor
 
 
 def test_add_field_dimension_mismatch(containers):
@@ -259,8 +262,11 @@ def test_remove_field(containers):
     # Check if attribute was removed
     assert not hasattr(container, field_name_to_be_removed)
 
+    # For particle containers the type does not change
+    particle_factor=isinstance(container, ParticleContainer)
+
     # check that datatype changed!
-    assert new_datatype != original_datatype
+    assert (new_datatype != original_datatype) ^ particle_factor 
 
 
 def test_remove_field_warning(containers):

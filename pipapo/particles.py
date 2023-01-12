@@ -121,7 +121,7 @@ class ParticleContainer(NumpyContainer):
                 )
         else:
             field_names = list(set(field_names).union(MANDATORY_FIELDS))
-        super().__init__(datatype=Particle, *field_names, **fields)
+        super().__init__(Particle, *field_names, **fields)
 
     def __str__(self):
         """Particle container descriptions."""
@@ -156,7 +156,7 @@ class ParticleContainer(NumpyContainer):
         """
         if self:
             file_path = Path(file_path)
-            if file_path.suffix == ".vtk":
+            if file_path.suffix in [".vtk",".vtp"]:
                 export_vtk(self.to_dict(), file_path)
             elif file_path.suffix == ".csv":
                 export_csv(self.to_dict(), file_path)
