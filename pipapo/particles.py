@@ -10,6 +10,8 @@ from pipapo.utils.csv import export_csv, import_csv
 from pipapo.utils.dataclass import Container, NumpyContainer, has_len
 from pipapo.utils.vtk import export_vtk, import_vtk
 
+pv.set_plot_theme("document")
+
 
 class Particle:
     """Particle object."""
@@ -380,7 +382,7 @@ class ParticleContainer(NumpyContainer):
     def _update_data_type(self):
         """Needs to be overwritten."""
 
-    def get_pv_spheres(self):
+    def get_pv_spheres(self, field_name=None):
         """Get pyvista spheres.
 
         Returns:
@@ -388,16 +390,24 @@ class ParticleContainer(NumpyContainer):
         """
         spheres = []
         for i in range(len(self)):
-            spheres.append(pv.Sphere(self.radius[i], self.position[i])) # pylint: disable=E1136
+            sphere = pv.Sphere(
+                self.radius[i], self.position[i]
+            )  # pylint: disable=E1136
+            if field_name:
+                sphere["Data"] = (
+                    np.ones(len(sphere.points)) * getattr(self, field_name)[i]
+                )
+            spheres.append(sphere)
         return spheres
 
-    def plot(self, color="green", pv_plotter=None, show=True):
+    def plot(self, pv_plotter=None, show=True, field_name=None, **kwargs):
         """Plot spheres.
 
         Args:
-            color (str, optional): Color of the particles. Defaults to "green".
             pv_plotter (pv.Plotter, optional): Plotter object to plot. Defaults to None.
             show (bool, optional): Open the plotting window. Defaults to True.
+            field_name (str,optional): Field to plot. Defaults to None
+            kwargs (dict): additional keyword arguments for add_mesh
 
         Returns:
             pv.Plotter: Plotter object
@@ -405,11 +415,15 @@ class ParticleContainer(NumpyContainer):
         if not pv_plotter:
             pv_plotter = pv.Plotter()
 
-        for sphere in self.get_pv_spheres():
-            pv_plotter.add_mesh(sphere, color=color)
+        if not "color" in kwargs and not field_name:
+            kwargs["color"] = "green"
+
+        for sphere in self.get_pv_spheres(field_name):
+            pv_plotter.add_mesh(sphere, scalar_bar_args={"title": field_name}, **kwargs)
 
         if show:
             pv_plotter.show()
+
         return pv_plotter
 
 
@@ -429,4 +443,8 @@ class ContactContainer(Container):
 
     def get_isolated_particles_id(self):
         """Array with isolated particles."""
-        return self.where(self.coordination_number == 0)  # pylint: disable=E1101
+        return [
+            particle_id
+            for particle_id, coordination_number in enumerate(self.coordination_number)
+            if coordination_number == 0
+        ]
