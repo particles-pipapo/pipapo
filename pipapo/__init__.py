@@ -1,1 +1,2 @@
-from .particles import particles
+"""Pipapo init."""
+from pipapo.particles import Particle, ParticleContainer
