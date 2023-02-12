@@ -108,8 +108,8 @@ def test_export_failure(tmp_path, particlecontainer_fixture):
     particles, _ = particlecontainer_fixture
     path = Path(tmp_path) / "export.not_existing"
     with pytest.raises(
-        TypeError,
-        match="Filetype .not_existing unknown. Supported export file types are vtk or csv.",
+        IOError,
+        match="Filetype .not_existing unknown. Supported export file types are vtk, vtp or csv.",
     ):
         particles.export(path)
 

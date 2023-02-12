@@ -6,9 +6,10 @@ import numpy as np
 import pyvista as pv
 
 from pipapo.utils.binning import get_bounding_box
-from pipapo.utils.csv import export_csv, import_csv
+from pipapo.utils.csv import import_csv
 from pipapo.utils.dataclass import Container, NumpyContainer, has_len
-from pipapo.utils.vtk import export_vtk, import_vtk
+from pipapo.utils.vtk import import_vtk
+from pipapo.utils.io import export
 
 pv.set_plot_theme("document")
 
@@ -158,16 +159,7 @@ class ParticleContainer(NumpyContainer):
             file_path (str): Path were to store the files
         """
         if self:
-            file_path = Path(file_path)
-            if file_path.suffix in [".vtk", ".vtp"]:
-                export_vtk(self.to_dict(), file_path)
-            elif file_path.suffix == ".csv":
-                export_csv(self.to_dict(), file_path)
-            else:
-                raise TypeError(
-                    f"Filetype {file_path.suffix} unknown. Supported export file types are vtk or "
-                    "csv."
-                )
+            export(self.to_dict(), file_path)
         else:
             warnings.warn("Empty particles set, nothing was exported.")
 
