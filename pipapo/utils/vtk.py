@@ -15,9 +15,14 @@ def export_polydata(polydata, file_path):
 
     Args:
         polydata (vtk.PolyData): Polydata object ot be exported
-        file_path (str): Path to be exported.
+        file_path (pathlib.Path): Path to be exported.
     """
-    writer = vtk.vtkPolyDataWriter()
+    if file_path.suffix == ".vtk":
+        writer = vtk.vtkPolyDataWriter()
+    elif file_path.suffix == ".vtp":
+        writer = vtk.vtkXMLPolyDataWriter()
+    else:
+        raise IOError(f"Can not export {file_path.suffix} files.")
     writer.SetFileName(file_path)
     writer.SetInputData(polydata)
     writer.Write()
@@ -63,14 +68,19 @@ def import_polydata(file_path):
     """Import polydata from path.
 
     Args:
-        file_path (str): Path to the vtk-file
+        file_path (pathlib.Path): Path to the vtk-file
 
     Returns:
         vtk.PolyData: Polydata object
     """
     file_path = Path(file_path)
     check_if_file_exist(file_path)
-    reader = vtk.vtkPolyDataReader()
+    if file_path.suffix == ".vtk":
+        reader = vtk.vtkPolyDataReader()
+    elif file_path.suffix == ".vtp":
+        reader = vtk.vtkXMLPolyDataReader()
+    else:
+        raise IOError(f"Can not import {file_path.suffix} files.")
     reader.SetFileName(str(file_path))
     reader.Update()
     polydata = reader.GetOutput()
