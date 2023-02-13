@@ -4,6 +4,11 @@ from collections.abc import Iterable
 import numpy as np
 
 
+def assert_equal_list_with_array(a, b):
+    """Assert if list with arrays are equal."""
+    return all([assert_equal(i, j) for i, j in zip(a, b)])
+
+
 def assert_equal(a, b):
     """Assert if a and b are equal."""
     if isinstance(a, np.ndarray) or isinstance(b, np.ndarray):
