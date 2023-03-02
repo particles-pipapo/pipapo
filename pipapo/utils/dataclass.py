@@ -435,7 +435,7 @@ class Container:
             raise TypeError(
                 f"Argument must be of type '{self.datatype}' not type '{type(new_element)}'!"
             )
-        new_id_start = max(self.id) + 1
+        new_id_start = max(self.id) + 1 if len(self.id) else 0
         existing_fields = [key for key in self.field_names if key != "id"]
         for field in existing_fields:
             new_value = getattr(new_element, field)
