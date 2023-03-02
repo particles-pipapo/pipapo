@@ -18,7 +18,7 @@ class VoxelContainer(NumpyContainer):
     def __init__(
         self, center, lengths, voxel_size, n_voxels_dim, *field_names, **fields
     ):
-        """Initialise particles container.
+        """Initialise voxel container.
 
         Args:
             field_names (list): Field names list
@@ -141,7 +141,8 @@ class VoxelContainer(NumpyContainer):
         if not force:
             if len(self) > 2000:
                 warnings.warn(
-                    "You are trying to plot a large voxel set. If you really want to do this add the kwarg force=True."
+                    "You are trying to plot a large voxel set. If you really want to do this add"
+                    " the kwarg force=True."
                 )
                 return
 
@@ -210,15 +211,15 @@ class VoxelContainer(NumpyContainer):
 
         Args:
             particles (pipapo.ParticleContainer): particles to be voxelized
-            center (np.ndarray): center of outer domain. Defaults to the center of the bounding box of
-                                 the particle container
-            lengths (np.ndarray): lengths of outer domain. Defaults to the lengths of the bounding box
-                                  of the particle container
+            center (np.ndarray): center of outer domain. Defaults to the center of the bounding box
+                                 of the particle container
+            lengths (np.ndarray): lengths of outer domain. Defaults to the lengths of the bounding
+                                  box of the particle container
             voxel_size (float): voxel size. defaults to a quarter of the smallest radius of the
                                 particles
-            n_voxels_dim (np.ndarray): voxels per dimension. Defaults to the number of voxels that fit
-                                       in a length of the bounding box of the particle container
-            n_threads (float): voxels number of threads
+            n_voxels_dim (np.ndarray): voxels per dimension. Defaults to the number of voxels that
+                                       fit in a length of the bounding box of the container
+            n_threads (float): threads to parallelize the calculation of the voxels
             return_all (bool): Return all the information of the voxels. Defaults to False
         Returns:
             VoxelContainer: voxel container from particles
@@ -258,9 +259,13 @@ def _voxelize_particlecontainer(particles, center, lengths, voxel_size, n_voxels
     """
     outer_left_boundary = center - lengths * 0.5
     voxel_ids = set()
-    for p in particles:
+    for particle in particles:
         voxels_in_particle_ids = voxelize_particle(
-            p.position, p.radius, outer_left_boundary, voxel_size, n_voxels_dim
+            particle.position,
+            particle.radius,
+            outer_left_boundary,
+            voxel_size,
+            n_voxels_dim,
         )
         voxel_ids.update(voxels_in_particle_ids)
     return voxel_ids
@@ -276,7 +281,7 @@ def _parallel_voxelize_particlecontainer(
         lengths (np.ndarray): lengths of outer domain
         voxel_size (float): voxel size
         n_voxels_dim (np.ndarray): voxels per dimension
-        n_threads (float): voxels number of threads
+        n_threads (float): threads to parallelize the calculation of the voxels
     Returns:
         set: set of indices of the voxels
     """
@@ -346,7 +351,7 @@ def running_index(i, j, k, n_dim):
         i (int): first index
         j (int): second index
         k (int): third index
-        n_dim (int): length per dimension
+        n_dim (np.ndarray): length per dimension
 
     Returns:
         int: running index
@@ -382,7 +387,7 @@ def voxelize_particle(
     voxel_size,
     n_voxels_dim,
 ):
-    """Get voxels for a single partilce.
+    """Get voxels for a single particle.
 
     The domain is given by `outer_left_boundary` which is the vertex of the domain with the
     smallest coordinate in every direction. The indices are based on a background mesh defined by
@@ -390,12 +395,12 @@ def voxelize_particle(
 
     Idea:
       1. Raster bounding box of the particle to the background mesh
-      2. Loop through the voxels of the rasted bounding box
+      2. Loop through the voxels of the rastered bounding box
 
     Args:
         particle_center (np.ndarray): particle center
         particle_radius (float): particle radius
-        outer_left_boundary (np.ndarray): vertex of outerbox with smallest coordinates
+        outer_left_boundary (np.ndarray): vertex of outer box with smallest coordinates
         voxel_size (float): voxel size
         n_voxels_dim (np.ndarray): voxels per dimension
 
@@ -404,10 +409,10 @@ def voxelize_particle(
     """
     bounding_box_left_boundary = particle_center - particle_radius
     ijk = (bounding_box_left_boundary - outer_left_boundary) // voxel_size
-    rasted = outer_left_boundary + ijk * voxel_size
+    rastered = outer_left_boundary + ijk * voxel_size
 
     dijk = round_up_division(
-        bounding_box_left_boundary + particle_radius * 2 - rasted, voxel_size
+        bounding_box_left_boundary + particle_radius * 2 - rastered, voxel_size
     )
     radius_sq = particle_radius * particle_radius
     voxel_indices = []
@@ -416,7 +421,8 @@ def voxelize_particle(
     upper_bound = np.minimum(ijk + dijk, n_voxels_dim).astype(int)
     lower_bound = np.maximum(ijk, 0).astype(int)
 
-    # offset in the radius compuation
+    # offset in the radius computation in order to only doing in once
+    # half the voxel size is added to address the voxel centers
     offset = outer_left_boundary - particle_center + 0.5 * voxel_size
 
     for k in range(lower_bound[2], upper_bound[2]):

@@ -78,14 +78,14 @@ def test_chunkify():
     )
 
 
-def test_waring_reset_id(voxelcontainer):
+def test_warning_reset_id(voxelcontainer):
     """Test if warning is raised when trying to reset the ids."""
     voxels, _ = voxelcontainer
     with pytest.warns():
         voxels.reset_ids()
 
 
-def test_waring_plt(voxelcontainer):
+def test_warning_plt(voxelcontainer):
     """Test if warning is raised when trying to plot large sets."""
     voxels, n_voxels_expected = voxelcontainer
     if n_voxels_expected > 2000:
