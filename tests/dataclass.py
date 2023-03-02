@@ -227,8 +227,8 @@ def test_add_field(containers):
     assert id(container.field_3) != id(field_3)
 
     # For particle containers the type does not change
-    particle_factor=isinstance(container, ParticleContainer)
-    
+    particle_factor = isinstance(container, ParticleContainer)
+
     # check that datatype changed!
     assert (new_datatype != original_datatype) ^ particle_factor
 
@@ -263,10 +263,10 @@ def test_remove_field(containers):
     assert not hasattr(container, field_name_to_be_removed)
 
     # For particle containers the type does not change
-    particle_factor=isinstance(container, ParticleContainer)
+    particle_factor = isinstance(container, ParticleContainer)
 
     # check that datatype changed!
-    assert (new_datatype != original_datatype) ^ particle_factor 
+    assert (new_datatype != original_datatype) ^ particle_factor
 
 
 def test_remove_field_warning(containers):

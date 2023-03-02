@@ -6,9 +6,32 @@ def check_if_file_exist(file_path):
     """Check if file exists.
 
     Args:
-        file_path (str): _description_
+        file_path (str): file path
     """
     if not Path(file_path).is_file():
         raise FileNotFoundError(
             f"File {str(Path(file_path).resolve())} does not exist."
+        )
+
+
+def export(dictionary, file_path):
+    """Export dictionary as csv, vtk or vtp.
+
+    Args:
+        dictionary (dict): data to be exported
+        file_path (pathlib.Path): export file path
+    """
+    file_path = Path(file_path)
+    if file_path.suffix in [".vtk", ".vtp"]:
+        from pipapo.utils.vtk import export_vtk
+
+        export_vtk(dictionary, file_path)
+    elif file_path.suffix == ".csv":
+        from pipapo.utils.csv import export_csv
+
+        export_csv(dictionary, file_path)
+    else:
+        raise IOError(
+            f"Filetype {file_path.suffix} unknown. Supported export file types are vtk, vtp or "
+            "csv."
         )
