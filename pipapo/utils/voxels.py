@@ -368,16 +368,11 @@ def reverse_running_index(c, n_dim):
     Returns:
         (int,int,int): indices i,j,k
     """
-    i, j, k = 0, 0, 0
-    if c < n_dim[0]:
-        i = c
-    elif c < n_dim[0] * n_dim[1]:
-        j = c // n_dim[0]
-        i, _, _ = reverse_running_index(c - j * n_dim[0], n_dim)
-    else:
-        k = c // (n_dim[0] * n_dim[1])
-        i, j, _ = reverse_running_index(c - k * n_dim[0] * n_dim[1], n_dim)
-    return int(i), int(j), int(k)
+    k = c // (n_dim[0] * n_dim[1])
+    c1 = c - k * n_dim[0] * n_dim[1]
+    j = c1 // n_dim[0]
+    i = c1 - j * n_dim[0]
+    return i, j, k
 
 
 def voxelize_particle(
