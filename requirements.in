@@ -2,3 +2,4 @@ vtk
 pathlib
 pandas
 pytest
+meshio
