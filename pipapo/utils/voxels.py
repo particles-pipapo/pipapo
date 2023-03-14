@@ -368,6 +368,7 @@ def reverse_running_index(c, n_dim):
     Returns:
         (int,int,int): indices i,j,k
     """
+    c = int(c)
     k = c // (n_dim[0] * n_dim[1])
     c1 = c - k * n_dim[0] * n_dim[1]
     j = c1 // n_dim[0]
