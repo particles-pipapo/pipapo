@@ -4,10 +4,12 @@ from collections.abc import Iterable
 from functools import partial
 from multiprocessing import Pool
 
+import meshio
 import numpy as np
 import pyvista as pv
+
 from pipapo.utils.dataclass import NumpyContainer
-from pipapo.utils.io import export
+from pipapo.utils.io import export, pathify
 
 pv.set_plot_theme("document")
 
@@ -21,6 +23,11 @@ class VoxelContainer(NumpyContainer):
         """Initialise voxel container.
 
         Args:
+            center (np.ndarray): Center of the box
+            lengths (np.ndarray): Lengths of the box
+            voxel_size (float): Voxel size
+            n_voxel_dim (np.ndarray): Number of voxels per dimension
+            add_centers (bool, optional): Compute the cell centers. Defaults to True.
             field_names (list): Field names list
             fields (dict): Dictionary with field names and values.
         """
@@ -30,6 +37,38 @@ class VoxelContainer(NumpyContainer):
         self.n_voxels_dim = n_voxels_dim
         self.voxel_volume = self.voxel_size * self.voxel_size * self.voxel_size
         super().__init__(*field_names, **fields)
+
+    @classmethod
+    def from_box_and_voxel_size(cls, center, lengths, voxel_size, add_centers=True):
+        """Create empty voxel container from a box and voxel_size.
+
+        Note that be domain might be slightly bigger as all the voxels are equal sized.
+
+        Args:
+            center (np.ndarray): Center of the box
+            lengths (np.ndarray): Lengths of the box
+            voxel_size (float): Voxel size
+            add_centers (bool, optional): Compute the cell centers. Defaults to True.
+
+        Returns:
+            VoxelContainer: initialized voxel container
+        """
+        n_voxels_dim = round_up_division(lengths, voxel_size)
+        voxel_container = cls(
+            center=center,
+            lengths=lengths,
+            voxel_size=voxel_size,
+            n_voxels_dim=n_voxels_dim,
+        )
+
+        # Add the voxel centers if desired
+        if add_centers:
+            voxel_container.id = np.arange(
+                voxel_container.total_number_of_voxels_in_outer_domain()
+            ).reshape(-1, 1)
+            voxel_container.add_voxel_centers()
+
+        return voxel_container
 
     def __str__(self):
         """Voxel container descriptions."""
@@ -97,10 +136,62 @@ class VoxelContainer(NumpyContainer):
         """
         if not hasattr(self, "position"):
             self.add_voxel_centers()
-        export(
-            self.to_dict(),
-            file_path,
+
+        file_path = pathify(file_path)
+        if file_path.suffix == ".vtu":
+            self._export_vtu(file_path)
+        else:
+            export(
+                self.to_dict(),
+                file_path,
+            )
+
+    def _export_vtu(self, file_path):
+        """Create hexahedrons and export as vtu.
+
+        Note that notes will appear multiple times.
+
+        Args:
+            file_path (pathlib.Path): Path to file.
+        """
+
+        # meshio hexahedron definition
+        ref_coordinates = np.array(
+            [
+                [-1, 1, -1],
+                [-1, -1, -1],
+                [1, -1, -1],
+                [1, 1, -1],
+                [-1, 1, 1],
+                [-1, -1, 1],
+                [1, -1, 1],
+                [1, 1, 1],
+            ]
         )
+
+        nodes = []
+        for position in self.position:
+            nodes_element = ref_coordinates * 0.5 * self.voxel_size + position
+            nodes.extend(nodes_element)
+
+        cell_data = self.to_dict()
+
+        # remove position
+        cell_data.pop("position")
+
+        # meshio wants the cell data to be wrapped in a list
+        for k in cell_data:
+            cell_data[k] = [cell_data[k]]
+
+        # create mesh
+        mesh = meshio.Mesh(
+            np.array(nodes),
+            [("hexahedron", np.arange(len(nodes)).reshape(-1, 8))],
+            cell_data=cell_data,
+        )
+
+        # export the mesh
+        mesh.write(file_path)
 
     def get_pv_cubes(self, field_name=None):
         """Get pyvista cubes.
