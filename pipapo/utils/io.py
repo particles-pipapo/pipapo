@@ -14,6 +14,18 @@ def check_if_file_exist(file_path):
         )
 
 
+def pathify(file_path):
+    """Simple wrapper to avoid importing pathlib.
+
+    Args:
+        file_path (str, pathlib.Path): Path to be wrapped
+
+    Returns:
+        pathlib.path: Path object
+    """
+    return Path(file_path)
+
+
 def export(dictionary, file_path):
     """Export dictionary as csv, vtk or vtp.
 
@@ -21,7 +33,7 @@ def export(dictionary, file_path):
         dictionary (dict): data to be exported
         file_path (pathlib.Path): export file path
     """
-    file_path = Path(file_path)
+    file_path = pathify(file_path)
     if file_path.suffix in [".vtk", ".vtp"]:
         from pipapo.utils.vtk import export_vtk
 

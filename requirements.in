@@ -3,3 +3,4 @@ pathlib
 pandas
 pytest
 pyvista
+meshio

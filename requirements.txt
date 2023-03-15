@@ -42,8 +42,14 @@ iniconfig==1.1.1
     # via pytest
 kiwisolver==1.4.4
     # via matplotlib
+markdown-it-py==2.2.0
+    # via rich
 matplotlib==3.6.1
     # via vtk
+mdurl==0.1.2
+    # via markdown-it-py
+meshio==5.3.4
+    # via -r requirements.in
 multidict==6.0.2
     # via
     #   aiohttp
@@ -53,6 +59,7 @@ numpy==1.23.3
     #   contourpy
     #   imageio
     #   matplotlib
+    #   meshio
     #   pandas
     #   pyvista
 packaging==21.3
@@ -75,6 +82,8 @@ pluggy==1.0.0
     # via pytest
 pooch==1.7.0
     # via pyvista
+pygments==2.14.0
+    # via rich
 pyparsing==3.0.9
     # via
     #   matplotlib
@@ -93,6 +102,8 @@ requests==2.28.2
     # via pooch
 scooby==0.7.1
     # via pyvista
+rich==13.3.2
+    # via meshio
 six==1.16.0
     # via python-dateutil
 tomli==2.0.1
