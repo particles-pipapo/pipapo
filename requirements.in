@@ -2,4 +2,5 @@ vtk
 pathlib
 pandas
 pytest
+pyvista
 meshio
