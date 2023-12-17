@@ -10,6 +10,7 @@ from pipapo.utils.csv import import_csv
 from pipapo.utils.dataclass import Container, NumpyContainer, has_len
 from pipapo.utils.vtk import import_vtk
 from pipapo.utils.io import export
+from pipapo.utils.voxels import VoxelContainer
 
 pv.set_plot_theme("document")
 
@@ -417,6 +418,46 @@ class ParticleContainer(NumpyContainer):
             pv_plotter.show()
 
         return pv_plotter
+
+    def porosity(
+        self,
+        center=None,
+        lengths=None,
+        voxel_size=None,
+        n_voxels_dim=None,
+        n_threads=1,
+        return_voxels=False,
+    ):
+        """Compute porosity.
+
+        Args:
+            center (np.ndarray): center of outer domain. Defaults to the center of the bounding box
+                                 of the particle container
+            lengths (np.ndarray): lengths of outer domain. Defaults to the lengths of the bounding
+                                  box of the particle container
+            voxel_size (float): voxel size. defaults to a quarter of the smallest radius of the
+                                particles
+            n_voxels_dim (np.ndarray): voxels per dimension. Defaults to the number of voxels that
+                                       fit in a length of the bounding box of the container
+            n_threads (int): threads to parallelize the calculation of the voxels
+            return_voxels (bool): Return voxels container. Defaults to False.
+
+        Returns:
+            porosity or porosity and voxel container
+        """
+        voxels = VoxelContainer.from_particles(
+            self,
+            center=center,
+            lengths=lengths,
+            voxel_size=voxel_size,
+            n_voxels_dim=n_voxels_dim,
+            n_threads=n_threads,
+        )
+        porosity = 1 - voxels.volume_of_voxels() / voxels.volume_of_outer_domain()
+        if return_voxels:
+            return porosity, voxels
+
+        return porosity
 
 
 class ContactContainer(Container):
