@@ -103,7 +103,7 @@ class VoxelContainer(NumpyContainer):
         Returns:
             float: Volume of domain
         """
-        return self.voxel_volume * self.total_number_of_voxels_in_domain()
+        return self.voxel_volume * self.total_number_of_voxels_in_outer_domain()
 
     def to_dict(self):
         """Create dictionary from voxels.
