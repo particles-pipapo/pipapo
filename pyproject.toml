@@ -10,8 +10,8 @@ description = "pipapo - python implemented particles postprocessor"
 dynamic = ["version","dependencies"]
 requires-python = ">=3.10"
 
-[tool.setuptools]
-packages = ["pipapo"]
+[tool.setuptools.packages.find]
+include = ["pipapo.*"] 
 
 [tool.setuptools.dynamic]
 version = {attr = "pipapo.VERSION"}
