@@ -1,112 +1,30 @@
 """Particle classes."""
+
 import warnings
 from pathlib import Path
 
 import numpy as np
 import pyvista as pv
 
+from pipapo.particle import Particle
+from pipapo.utils import sphere_plane_intersection
 from pipapo.utils.binning import get_bounding_box
+from pipapo.utils.contacts import (ParticlePairContainer,
+                                   ParticleWallPairContainer)
 from pipapo.utils.csv import import_csv
-from pipapo.utils.dataclass import Container, NumpyContainer, has_len
-from pipapo.utils.vtk import import_vtk
+from pipapo.utils.dataclass import NumpyContainer
 from pipapo.utils.io import export
 from pipapo.utils.voxels import VoxelContainer
+from pipapo.utils.vtk import import_vtk
 
 pv.set_plot_theme("document")
 
 
-class Particle:
-    """Particle object."""
-
-    def __init__(self, position, radius, **fields):
-        """Initialise particle object.
-
-        Args:
-            position (np.array): Particle center position
-            radius (float): Particle radius
-        """
-        self.position = position
-        self.radius = float(radius)
-        for key, value in fields.items():
-            if has_len(value) and len(value) == 1:
-                value = value[0]
-
-            setattr(self, key, value)
-
-    def evaluate_function(self, fun, add_as_field=False, field_name=None):
-        """Evaluate function on particle data.
-
-        Args:
-            fun (fun): function to be evaluated on the particle data.
-            add_as_field (bool, optional): True if new field is to be added. Defaults to False.
-            field_name (str, optional): Name of the new field. Defaults to None.
-        Returns:
-            function evaluation result
-        """
-        result = fun(self)
-        if add_as_field:
-            if not field_name:
-                field_name = fun.__name__
-                if field_name == "<lambda>":
-                    raise NameError(
-                        "You are using a lambda function. Please add a name to the field you want"
-                        "to add with the keyword 'field_name'"
-                    )
-            setattr(self, field_name, result)
-
-        return result
-
-    def items(self):
-        """Particle items.
-
-        Returns:
-            dict_items: Name and field values
-        """
-        return self.__dict__.items()
-
-    def volume(self, add_as_field=False):
-        """Volume of the particle.
-
-        Args:
-            add_as_field (bool, optional): True if the field is to be added. Defaults to False.
-
-        Returns:
-            float: particle volume
-        """
-        # pylint: disable=C3001
-        volume_sphere = lambda p: 4 * np.pi / 3 * p.radius * p.radius * p.radius
-        # pylint: enable=C3001
-        return self.evaluate_function(volume_sphere, add_as_field, field_name="volume")
-
-    def surface(self, add_as_field=False):
-        """Surface of the particle.
-
-        Args:
-            add_as_field (bool, optional): True if the field is to be added. Defaults to False.
-
-        Returns:
-            float: particle surface
-        """
-        surface_sphere = (
-            lambda p: 4 * np.pi * p.radius * p.radius  # pylint: disable=C3001
-        )
-        return self.evaluate_function(
-            surface_sphere, add_as_field=add_as_field, field_name="surface"
-        )
-
-    def __str__(self):
-        """Particle description."""
-        string = "\npipapo particle\n"
-        string += "\n".join([f"  {key}: {value}" for key, value in self.items()])
-        return string
-
-
-# Id is handled by the dataclass
-MANDATORY_FIELDS = ["position", "radius"]
-
-
 class ParticleContainer(NumpyContainer):
     """Particles container."""
+
+    # Id is handled by the dataclass
+    _MANDATORY_FIELDS = ["position", "radius"]
 
     def __init__(self, *field_names, **fields):
         """Initialise particles container.
@@ -118,14 +36,17 @@ class ParticleContainer(NumpyContainer):
         self.position = None
         self.radius = None
         if fields:
-            if not set(MANDATORY_FIELDS).intersection(list(fields.keys())) == set(
-                MANDATORY_FIELDS
-            ):
-                raise Exception(
-                    f"The mandatory fields {', '.join(MANDATORY_FIELDS)} were not provided."
+            if not set(ParticleContainer._MANDATORY_FIELDS).intersection(
+                list(fields.keys())
+            ) == set(ParticleContainer._MANDATORY_FIELDS):
+                raise TypeError(
+                    f"The mandatory fields {', '.join(ParticleContainer._MANDATORY_FIELDS)} were "
+                    "not provided."
                 )
         else:
-            field_names = list(set(field_names).union(MANDATORY_FIELDS))
+            field_names = list(
+                set(field_names).union(ParticleContainer._MANDATORY_FIELDS)
+            )
         super().__init__(Particle, *field_names, **fields)
 
     def __str__(self):
@@ -322,7 +243,7 @@ class ParticleContainer(NumpyContainer):
         super().remove_element_by_id(particle_id, reset_ids=reset_ids)
 
     def add_particle(self, new_particles):
-        """Add particle(s)
+        """Add particle(s).
 
         Args:
             new_particles (Particle, ParticleContainer): New data to be added
@@ -335,41 +256,33 @@ class ParticleContainer(NumpyContainer):
         Args:
             field_name (str): Name of the field to be removed
         """
-        fields = MANDATORY_FIELDS + ["id"]
+        fields = ParticleContainer._MANDATORY_FIELDS + ["id"]
         if field_name in fields:
-            raise Exception(
+            raise ValueError(
                 f"Mandatory fields: {', '.join(fields)} can not be deleted!"
             )
         super().remove_field(field_name)
 
-    def get_contacts(self):
-        """Get contact partners.
+    def get_particle_pairs(self):
+        """Get particle pairs.
 
         Returns:
-            ContactContainer: Container with contact data
+            ParticlePairContainer: Pairs from particle set
         """
-        coordination_number = [0] * len(self)
-        contact_partners_ids = [[] for i in range(len(self))]
-        gaps = [[] for i in range(len(self))]
+        return ParticlePairContainer.from_particles(self)
 
-        for i, (radius_i, position_i) in enumerate(zip(self.radius, self.position)):
-            for j, (radius_j, position_j) in enumerate(zip(self.radius, self.position)):
-                if j <= i:
-                    continue
-                radius_sum = radius_i + radius_j
-                distance = np.sqrt(np.sum((position_i - position_j) ** 2))
-                gap = distance - radius_sum
-                if gap < 0:
-                    coordination_number[i] += 1
-                    contact_partners_ids[i].append(j)
-                    gaps[i].append(gap)
-                    coordination_number[j] += 1
-                    contact_partners_ids[j].append(i)
-                    gaps[j].append(gap)
-        return ContactContainer(
-            coordination_number=coordination_number,
-            contact_partners_ids=contact_partners_ids,
-            gaps=gaps,
+    def get_particle_wall_pairs(self, wall_point, wall_normal):
+        """Get particle wall pairs.
+
+        Args:
+            wall_point  (np.ndarray): Point on the wall to define the plane
+            wall_normal (np.ndarray): Wall normal POINTING INWARDS
+
+        Returns:
+            ParticleWallPairContainer: Pairs between wall and particle
+        """
+        return ParticleWallPairContainer.from_particles_and_wall(
+            self, wall_point, wall_normal
         )
 
     def _update_data_type(self):
@@ -419,7 +332,7 @@ class ParticleContainer(NumpyContainer):
 
         return pv_plotter
 
-    def porosity(
+    def get_porosity(
         self,
         center=None,
         lengths=None,
@@ -459,25 +372,31 @@ class ParticleContainer(NumpyContainer):
 
         return porosity
 
-
-class ContactContainer(Container):
-    """Container for contact data."""
-
-    def __init__(self, **fields):
-        """Initialise contact container.
+    def get_wall_contacts(self, wall_point, wall_normal, index_only=True):
+        """Get the interface area to a wall.
 
         Args:
-            coordination_number (list, optional): Coordination number of contact pairs. Defaults to
-                                                  None.
-            contact_partners_ids (list, optional): List of contact partners. Defaults to None.
-            gaps (list, optional): Gaps for each contact pair. Defaults to None.
-        """
-        super().__init__(self, **fields)
+            wall_point  (np.ndarray): Point on the wall to define the plane
+            wall_normal (np.ndarray): Wall normal POINTING INWARDS
+            index_only (bool): Return only indices
 
-    def get_isolated_particles_id(self):
-        """Array with isolated particles."""
-        return [
-            particle_id
-            for particle_id, coordination_number in enumerate(self.coordination_number)
-            if coordination_number == 0
-        ]
+        Returns:
+            indices (np.array): List of indices (if index_only=True)
+            particles (ParticleContainer): Particles in contact with the wall
+        """
+        center_to_wall_point = sphere_plane_intersection.get_center_to_plane_point(
+            self.position, wall_point
+        )
+        center_to_wall_distance = (
+            sphere_plane_intersection.get_center_to_plane_distance(
+                center_to_wall_point, wall_normal
+            )
+        )
+        indices = np.argwhere(
+            np.abs(center_to_wall_distance) < self.radius.flatten()
+        ).flatten()
+
+        if index_only:
+            return indices
+
+        return self[indices]
