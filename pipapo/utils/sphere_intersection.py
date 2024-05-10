@@ -60,7 +60,7 @@ def get_interface_area(distance_between_centers, radius_i, radius_j):
     Returns:
         float: interface area
     """
-    unnormalized_interface_area = -(
+    squared_interface_radius = -(
         0.25
         * (
             (distance_between_centers - radius_i - radius_j)
@@ -70,7 +70,7 @@ def get_interface_area(distance_between_centers, radius_i, radius_j):
         )
         / (distance_between_centers * distance_between_centers)
     )
-    return np.pi * unnormalized_interface_area
+    return np.pi * squared_interface_radius
 
 
 def get_interface_position_and_size(

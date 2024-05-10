@@ -89,8 +89,8 @@ def get_interface_area(center_to_plane_distance, radius_i):
     Returns:
         float: area of the interface
     """
-    unnormalized_interface_area = radius_i**2 - center_to_plane_distance**2
-    return np.pi * unnormalized_interface_area
+    squared_interface_radius = radius_i**2 - center_to_plane_distance**2
+    return np.pi * squared_interface_radius
 
 
 def get_interface_position_and_size(center_to_plane, interface_area, center_i):

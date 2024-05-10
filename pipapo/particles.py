@@ -9,8 +9,7 @@ import pyvista as pv
 from pipapo.particle import Particle
 from pipapo.utils import sphere_plane_intersection
 from pipapo.utils.binning import get_bounding_box
-from pipapo.utils.contacts import (ParticlePairContainer,
-                                   ParticleWallPairContainer)
+from pipapo.utils.contacts import ParticlePairContainer, ParticleWallPairContainer
 from pipapo.utils.csv import import_csv
 from pipapo.utils.dataclass import NumpyContainer
 from pipapo.utils.io import export
@@ -373,7 +372,7 @@ class ParticleContainer(NumpyContainer):
         return porosity
 
     def get_wall_contacts(self, wall_point, wall_normal, index_only=True):
-        """Get the interface area to a wall.
+        """Get particles in contact to the wall.
 
         Args:
             wall_point  (np.ndarray): Point on the wall to define the plane

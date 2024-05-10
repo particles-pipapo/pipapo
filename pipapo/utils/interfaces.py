@@ -20,7 +20,7 @@ pv.set_plot_theme("document")
 class InterfaceContainer(NumpyContainer):
     """Interface container.
 
-    In pipapo slang, an interface is described by a disk using a radius, its position and its not
+    In pipapo slang, an interface is described by a disk using a radius, its position and its normal
     vector.
     """
 
@@ -79,6 +79,9 @@ class InterfaceContainer(NumpyContainer):
         circles = []
         for i in range(len(self)):
             circle = pv.Circle(radius=self.radius[i])
+
+            # Modify the circle in order to orient it by its normal vector
+            # From https://github.com/pyvista/pyvista/discussions/4187#discussioncomment-5553953
             circle.rotate_x(90, inplace=True)
             circle.rotate_z(90, inplace=True)
             translate(circle, center=self.position[i], direction=self.normal[i])
