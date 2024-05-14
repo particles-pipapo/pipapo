@@ -1,4 +1,5 @@
 """Voxel container."""
+
 import warnings
 from collections.abc import Iterable
 from functools import partial
@@ -256,37 +257,10 @@ class VoxelContainer(NumpyContainer):
 
         return pv_plotter
 
-    def __getitem__(self, i):
-        """Getitem method.
-
-        Args:
-            i (int, slice, iterable): Indexes to get the items
-
-        Returns:
-            self.datatype: If index i is an int
-            type(self): If index i is iterable or slice
-        """
-        if isinstance(i, int):
-            if i >= len(self) or i < -len(self):
-                raise IndexError(f"Index {i} out of range for size {self.__len__()}")
-            item = self.datatype(**{key: value[i] for key, value in self._items()})
-        elif isinstance(i, Iterable):
-            item = type(self)(
-                self.center,
-                self.lengths,
-                self.voxel_size,
-                self.n_voxels_dim,
-                **{key: [value[j] for j in i] for key, value in self._items()},
-            )
-        else:
-            item = type(self)(
-                self.center,
-                self.lengths,
-                self.voxel_size,
-                self.n_voxels_dim,
-                **{key: value[i] for key, value in self._items()},
-            )
-        return item
+    def _get_multiple_items(self, data):
+        return type(self)(
+            self.center, self.lengths, self.voxel_size, self.n_voxels_dim, **data
+        )
 
     @classmethod
     def from_particles(

@@ -2,9 +2,9 @@
 from pathlib import Path
 
 import numpy as np
-from pipapo.utils.io import check_if_file_exist
 import pyvista as pv
 
+from pipapo.utils.io import check_if_file_exist
 
 # pylint: disable=E1101
 

@@ -1,10 +1,12 @@
 """Dataclasses."""
+
 import dataclasses
 import warnings
 from collections.abc import Iterable
 from copy import deepcopy
 
 import numpy as np
+
 from pipapo.utils.exceptions import ContainerError, LenError
 
 
@@ -167,7 +169,7 @@ class Container:
             field (list): field values
         """
         if not len(field) == len(self):
-            raise Exception(
+            raise ValueError(
                 f"Dimension mismatch while adding new field. Current length is {len(self)} but the"
                 f" field you want to add has length {len(field)}"
             )
@@ -223,17 +225,62 @@ class Container:
             self.datatype: If index i is an int
             type(self): If index i is iterable or slice
         """
-        if isinstance(i, int):
+        if isinstance(i, (int, np.integer)):
             if i >= len(self) or i < -len(self):
                 raise IndexError(f"Index {i} out of range for size {self.__len__()}")
-            item = self.datatype(**{key: value[i] for key, value in self._items()})
-        elif isinstance(i, Iterable):
-            item = type(self)(
-                **{key: [value[j] for j in i] for key, value in self._items()}
-            )
-        else:
-            item = type(self)(**{key: value[i] for key, value in self._items()})
-        return item
+            return self._get_single_item(i)
+
+        if isinstance(i, Iterable):
+            return self._get_multiple_items(self._get_indexed_data(i))
+
+        if isinstance(i, slice):
+            return self._get_multiple_items(self._get_sliced_data(i))
+
+        raise IndexError(f"Could not index with indices of type {type(i)}")
+
+    def _get_single_item(self, i):
+        """Get a single item by index.
+
+        Args:
+            i (int): Index to get the item
+
+        Returns:
+            Containter.datatype: Single datatype object
+        """
+        return self.datatype(**{key: value[i] for key, value in self._items()})
+
+    def _get_multiple_items(self, data):
+        """Get multiple items.
+
+        Args:
+            data (dict): data to create copy
+
+        Returns:
+            Container.datatype: New container
+        """
+        return type(self)(**data)
+
+    def _get_sliced_data(self, slice_for_data):
+        """Get multiple items from slice.
+
+        Args:
+            slice_for_data (slice): slice to index the data
+
+        Returns:
+            Container.datatype: New container
+        """
+        return {key: value[slice_for_data] for key, value in self._items()}
+
+    def _get_indexed_data(self, indices):
+        """Get multiple items from indices.
+
+        Args:
+            indices (Iterable): Indices for the data.
+
+        Returns:
+            Container.datatype: New container
+        """
+        return {key: [value[j] for j in indices] for key, value in self._items()}
 
     def _map_id_to_index(self, element_id):
         """Map id to index.
@@ -315,7 +362,7 @@ class Container:
         ]
 
     def _wrap_numpy(self, npfun, field_name, concatenate=False, **kwargs):
-        """Wrapper to evaluate numpy functions on fields.
+        """Wrap in order to evaluate numpy functions on fields.
 
         In case the array is concatenated no kwargs are passed as it becomes a 1d array.
         Args:
@@ -339,7 +386,7 @@ class Container:
         return npfun(field, **kwargs)
 
     def mean_of_field(self, field_name, concatenate=False, **kwargs):
-        """Compute mean on field
+        """Compute mean on field.
 
         Args:
             field_name (str): Field name
@@ -351,7 +398,7 @@ class Container:
         return self._wrap_numpy(np.mean, field_name, concatenate=concatenate, **kwargs)
 
     def standard_deviation_of_field(self, field_name, concatenate=False, **kwargs):
-        """Standard deviation of field.
+        """Get standard deviation of field.
 
         Args:
             field_name (str): Field name
@@ -509,7 +556,8 @@ class Container:
 class NumpyContainer(Container):
     """Numpy container.
 
-    All field are numpy arrays."""
+    All field are numpy arrays.
+    """
 
     def __init__(self, datatype=None, *field_names, **fields):
         """Initialise container.
@@ -573,7 +621,7 @@ class NumpyContainer(Container):
         self.id = transform_to_2d_np_array(np.arange(len(self)))
 
     def _check_if_equal_length(self, field_name):
-        """We assume np.ndarrays are always of equal length
+        """We assume np.ndarrays are always of equal length.
 
         Returns:
             bool: True
@@ -637,7 +685,7 @@ def transform_to_2d_np_array(array):
 
 
 def has_len(obj):
-    """Checks if obj has len method.
+    """Check if obj has len method.
 
     Args:
         obj (obj): object to be checked
@@ -675,8 +723,7 @@ def make_iterable(obj):
         values of obj
     """
     if isinstance(obj, Iterable):
-        for object_item in obj:
-            yield object_item
+        yield from obj
     else:
         yield obj
 
