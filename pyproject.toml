@@ -10,11 +10,11 @@ description = "pipapo - python implemented particles postprocessor"
 dynamic = ["version","dependencies"]
 requires-python = ">=3.10"
 
-[tool.setuptools.packages.find]
-include = ["pipapo.*"] 
+[tool.setuptools]
+package-dir = { "" = "src" }
 
 [tool.setuptools.dynamic]
-version = {attr = "pipapo.VERSION"}
+version = {attr = "pipapo.__version__"}
 dependencies = {file = ["requirements.txt"]}
 
 [project.optional-dependencies]
