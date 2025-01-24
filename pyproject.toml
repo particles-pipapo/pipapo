@@ -4,18 +4,24 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pipapo"
-authors = [{name="the patricles"}]
-license = {text="gpl v3"}
+authors = [{ name = "the patricles" }]
+license = { text = "MIT" }
 description = "pipapo - python implemented particles postprocessor"
-dynamic = ["version","dependencies"]
+dynamic = ["version", "dependencies"]
 requires-python = ">=3.10"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
 
 [tool.setuptools.dynamic]
-version = {attr = "pipapo.__version__"}
-dependencies = {file = ["requirements.txt"]}
+version = { attr = "pipapo.__version__" }
+dependencies = { file = ["requirements.txt"] }
 
 [project.optional-dependencies]
-develop = ["pylint>=2.15.9","isort>=5.0","black==22.3.0","vulture>=2.3","pip-tools"]
+develop = [
+    "pylint>=2.15.9",
+    "isort>=5.0",
+    "black==22.3.0",
+    "vulture>=2.3",
+    "pip-tools",
+]
