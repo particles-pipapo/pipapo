@@ -198,7 +198,6 @@ class ParticleWallPairContainer(PairContainer):
         string += f"  with fields: {', '.join(list(self.field_names))}"
         return string
 
-    @abc.abstractmethod
     def to_interfaces(self, particles, wall_point, wall_normal):
         """Create interface.
 
