@@ -17,6 +17,9 @@ package-dir = { "" = "src" }
 version = { attr = "pipapo.__version__" }
 dependencies = { file = ["requirements.txt"] }
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [project.optional-dependencies]
 develop = [
     "pylint>=2.15.9",

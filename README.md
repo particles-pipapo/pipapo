@@ -8,7 +8,7 @@
    ```
 1. Install via:
    ```bash
-   pip instal .
+   pip install .
    ```
    Develop install:
    ```bash
