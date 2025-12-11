@@ -1,22 +1,21 @@
 """Vtk utils."""
-from pathlib import Path
+
+import pathlib
 
 import numpy as np
 import pyvista as pv
 
-from pipapo.utils.io import check_if_file_exist
-
-# pylint: disable=E1101
+from pipapo.utils.type_hinting import float_np_array, int_np_array
 
 
-def dictionary_to_polydata(data_dict):
-    """Convert dictionary to polydata/
+def dictionary_to_polydata(data_dict: dict) -> pv.PolyData:
+    """Convert dictionary to polydata.
 
     Args:
-        data_dict (dict): Dictionary with the data
+        data_dict: Dictionary with the data
 
     Returns:
-        pyvista.PolyData: pyvista object
+        pyvista object
     """
     points = pv.PolyData(data_dict["position"])
 
@@ -26,42 +25,44 @@ def dictionary_to_polydata(data_dict):
     return points
 
 
-def data_to_dictionary(pyvista_data):
+def data_to_dictionary(
+    pyvista_data: pv.DataObject,
+) -> dict[str, float_np_array | int_np_array]:
     """Convert polydata to dictionary.
 
     Args:
-        pyvista_data (obj): Pyvista object.
+        pyvista_data: Pyvista object.
 
     Returns:
-        dict: Dictionary with data
+        Dictionary with data
     """
     dictionary = {}
+
     for key, value in pyvista_data.point_data.items():
-        dictionary[key] = value
-    dictionary["id"] = np.arange(len(value)).reshape(-1, 1)
-    dictionary["position"] = pyvista_data.points
+        dictionary[key] = np.array(value)
+    dictionary["position"] = np.array(pyvista_data.points)
     return dictionary
 
 
-def import_vtk(file_path):
+def import_vtk(file_path: pathlib.Path | str) -> dict:
     """Import vtk data to dictionary.
 
     Args:
-        file_path (str): Path to file
+        file_path: pathlib.Path to file
 
     Returns:
-        dict: dictionary with the particle data
+        Dictionary with the particle data
     """
     pyvista_data = pv.read(file_path)
     return data_to_dictionary(pyvista_data)
 
 
-def export_vtk(dictionary, file_path):
+def export_vtk(dictionary: dict, file_path: pathlib.Path | str) -> None:
     """Export dictionary to vtk.
 
     Args:
-        dictionary (dict): Data to be exported
-        file_path (str): Path to store file
+        dictionary: Data to be exported
+        file_path: pathlib.Path to store file
     """
     polydata = dictionary_to_polydata(dictionary)
     polydata.save(file_path)

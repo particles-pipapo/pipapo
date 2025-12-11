@@ -4,7 +4,7 @@
 ## Installation
 1. Create a python environment, for example conda using:
    ```bash
-   conda env create 
+   conda env create
    ```
 1. Install via:
    ```bash

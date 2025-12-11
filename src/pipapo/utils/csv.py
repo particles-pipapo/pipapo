@@ -1,20 +1,31 @@
 """Csv utils."""
+
+import pathlib
+from typing import Any
+
+import numpy as np
 import pandas
 
-from pipapo.utils.io import check_if_file_exist
+from pipapo.utils.path_utils import check_if_file_exist
 
 
-def export_csv(dictionary, file_path):
+def export_csv(dictionary: dict, file_path: pathlib.Path | str) -> None:
     """Export dictionary to csv.
 
     Args:
-        dictionary (dict): Container dict
-        file_path (str): File path to be stored at.
+        dictionary :Container dict
+        file_path:File path to be stored at.
     """
     labels = []
     data_arrays = []
     for label, data in dictionary.items():
-        if data.shape[1] == 1:
+        if not isinstance(data, np.ndarray):
+            data = np.array(data)
+
+        if len(data.shape) == 1:
+            data_arrays.append(data.flatten())
+            labels.append(label)
+        elif data.shape[1] == 1:
             data_arrays.append(data.flatten())
             labels.append(label)
         else:
@@ -26,18 +37,18 @@ def export_csv(dictionary, file_path):
     pd_dataframe.to_csv(file_path, sep=",", index=False)
 
 
-def import_csv(file_path, **kwargs):
+def import_csv(file_path: str, **kwargs: Any) -> dict:
     """Import dictionary from csv.
 
     Args:
-        file_path (str): Path to the csv file.
+        file_path: Path to the csv file.
 
     Returns:
-        dictionary (dict): Container dict
+        Container dict
     """
     check_if_file_exist(file_path)
     pandas_dataframe = pandas.read_csv(file_path, **kwargs)
     dictionary = {}
     for column in pandas_dataframe:
-        dictionary[column] = pandas_dataframe[column].to_numpy().reshape(-1, 1)
+        dictionary[column] = pandas_dataframe[column].to_numpy()
     return dictionary

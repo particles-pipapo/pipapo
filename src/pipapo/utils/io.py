@@ -1,45 +1,23 @@
 """Io utils."""
-from pathlib import Path
+
+import pathlib
+
+from pipapo.utils.csv import export_csv
+from pipapo.utils.vtk import export_vtk
 
 
-def check_if_file_exist(file_path):
-    """Check if file exists.
-
-    Args:
-        file_path (str): file path
-    """
-    if not Path(file_path).is_file():
-        raise FileNotFoundError(
-            f"File {str(Path(file_path).resolve())} does not exist."
-        )
-
-
-def pathify(file_path):
-    """Simple wrapper to avoid importing pathlib.
-
-    Args:
-        file_path (str, pathlib.Path): Path to be wrapped
-
-    Returns:
-        pathlib.path: Path object
-    """
-    return Path(file_path)
-
-
-def export(dictionary, file_path):
+def export(dictionary: dict, file_path: pathlib.Path | str) -> None:
     """Export dictionary as csv, vtk or vtp.
 
     Args:
-        dictionary (dict): data to be exported
-        file_path (pathlib.Path): export file path
+        dictionary :data to be exported
+        file_path:export file path
     """
-    file_path = pathify(file_path)
+    file_path = pathlib.Path(file_path)
     if file_path.suffix in [".vtk", ".vtp"]:
-        from pipapo.utils.vtk import export_vtk
 
         export_vtk(dictionary, file_path)
     elif file_path.suffix == ".csv":
-        from pipapo.utils.csv import export_csv
 
         export_csv(dictionary, file_path)
     else:

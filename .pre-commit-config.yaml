@@ -1,0 +1,70 @@
+default_stages: [pre-commit, pre-merge-commit, pre-push, manual]
+repos:
+  - repo: local
+    hooks:
+      - id: trailing-whitespace
+        name: trim trailing whitespace
+        entry: trailing-whitespace-fixer
+        language: python
+        types: [text]
+      - id: end-of-file-fixer
+        name: fix end of files
+        entry: end-of-file-fixer
+        language: python
+        types: [text]
+      - id: check-added-large-files
+        name: check for added large files
+        entry: check-added-large-files
+        language: python
+        types: [text]
+      - id: pydocstyle
+        name: pydocstyle
+        entry: pydocstyle
+        language: python
+        types: ["python"]
+        additional_dependencies: ["toml"]
+      - id: docformatter
+        name: docformatter
+        entry: docformatter
+        args: [--in-place]
+        language: python
+        types: ["python"]
+      - id: commitizen
+        name: commitizen
+        entry: cz
+        args: ["check", "--commit-msg-file", ".git/COMMIT_EDITMSG"]
+        pass_filenames: false
+        language: system
+        stages: [commit-msg, manual]
+      - id: isort
+        name: isort (python)
+        entry: isort
+        language: python
+        always_run: false
+        pass_filenames: true
+        additional_dependencies: ["toml"]
+      - id: black
+        name: black
+        entry: black
+        language: python
+        types: ["python"]
+        always_run: false
+        pass_filenames: true
+        additional_dependencies: ["toml"]
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: python
+        types: ["python"]
+        additional_dependencies: ["toml"]
+        always_run: false
+        pass_filenames: true
+      - id: mypy
+        name: mypy
+        entry: mypy
+        language: python
+        types: ["python"]
+        always_run: false
+        pass_filenames: true
+        args: ["--ignore-missing-imports", "--disallow-untyped-defs", "--disallow-incomplete-defs", "--disallow-untyped-calls", "--check-untyped-defs"]
+        exclude: "tests/"

@@ -22,12 +22,33 @@ optional-dependencies = { safe = { file = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+norecursedirs = "tests/pipapo_testing_utils"
 
 [project.optional-dependencies]
 develop = [
-    "pylint>=2.15.9",
+    "black",
+    "pytest",
+    "pylint",
+    "pylint-exit",
     "isort>=5.0",
-    "black==22.3.0",
-    "vulture>=2.3",
-    "pip-tools",
+    "pre-commit",
+    "pre-commit-hooks>=4.4.0",
+    "commitizen",
+    "pydocstyle",
+    "docformatter",
+    "pytest-cov",
+    "mypy",
+]
+
+[tool.isort]
+profile = "black"
+
+[tool.pylint]
+max-args = 10
+max-positional-arguments = 10
+max-locals = 20
+
+[tool.pylint.'MESSAGES CONTROL']
+disable = [
+    "R0801",  # duplicate-code
 ]

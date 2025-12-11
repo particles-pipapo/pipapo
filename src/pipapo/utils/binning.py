@@ -1,76 +1,71 @@
 """Utils for binning the paricles."""
+
 import numpy as np
 
+from pipapo.particles import ParticleContainer
+from pipapo.utils.type_hinting import float_np_array, int_np_array
 
-def bin_particles(particles, box_dimensions, n_bins, box_center=np.zeros(3)):
+
+def bin_particles(
+    particles: ParticleContainer,
+    box_dimensions: float_np_array,
+    n_bins: int_np_array,
+    box_center: float_np_array = np.zeros(3),
+) -> None:
     """Bin the particles.
 
     Args:
-        particles (ParticleContainer): Particles to be binned
-        box_dimensions (np.array): Dimension of binning box of the particles
-        n_bins (np.array): Number of bins per dimension
-        box_center (np.array, optional): Binning box center. Defaults to np.zeros(3).
+        particles: Particles to be binned
+        box_dimensions: Dimension of binning box of the particles
+        n_bins: Number of bins per dimension
+        box_center: Binning box center. Defaults to np.zeros(3).
     """
-    x_bins = np.linspace(
-        -0.5 * box_dimensions[0] + box_center[0],
-        0.5 * box_dimensions[0] + box_center[0],
-        n_bins[0] + 1,
+    # Precompute bin edges for all dimensions
+    half_box = 0.5 * box_dimensions
+    bin_edges = [
+        np.linspace(
+            -half_box[i] + box_center[i], half_box[i] + box_center[i], n_bins[i] + 1
+        )
+        for i in range(3)
+    ]
+
+    # Compute bin indices for all dimensions
+    bin_indices = [
+        np.digitize(particles.position[:, i], bin_edges[i]) - 1 for i in range(3)
+    ]
+
+    # Compute the bin ID using broadcasting
+    bin_id = (
+        bin_indices[0] * n_bins[1] * n_bins[2]
+        + bin_indices[1] * n_bins[2]
+        + bin_indices[2]
     )
-    y_bins = np.linspace(
-        -0.5 * box_dimensions[1] + box_center[1],
-        0.5 * box_dimensions[1] + box_center[1],
-        n_bins[1] + 1,
-    )
-    z_bins = np.linspace(
-        -0.5 * box_dimensions[2] + box_center[2],
-        0.5 * box_dimensions[2] + box_center[2],
-        n_bins[2] + 1,
-    )
 
-    # -1 is needed as indexing within the box starts at 1
-    x_bin = np.digitize(particles.position[:, 0], x_bins) - 1
-    y_bin = np.digitize(particles.position[:, 1], y_bins) - 1
-    z_bin = np.digitize(particles.position[:, 2], z_bins) - 1
-
-    # Create a running index
-    bin_id = x_bin * n_bins[2] * n_bins[1] + y_bin * n_bins[2] + z_bin
-
-    particles.add_field("bin_id", bin_id)
+    # Add the bin_id field to particles
+    particles.data["bin_id"] = bin_id
 
 
-def get_bounding_box(position, tol=1e-8):
-    """Get the bounding box from position.
-
-    Args:
-        position (np.array): Positions
-        tol (float, optional): Tolerance. Defaults to 1e-8.
-    """
-    mins = np.min(position, axis=0)
-    maxs = np.max(position, axis=0)
-    center = 0.5 * (mins + maxs)
-    lengths = maxs - mins + tol
-    return center, lengths
-
-
-def bin_bounding_box_by_n_bins(particles, n_bins):
+def bin_bounding_box_by_n_bins(
+    particles: ParticleContainer, n_bins: int_np_array
+) -> None:
     """Bin the particles.
 
     Args:
-        particles (ParticleContainer): Particles to be binned
-        n_bins (np.array): Number of bins per dimension
+        particles: Particles to be binned
+        n_bins: Number of bins per dimension
     """
-    center, lengths = get_bounding_box(particles.position)
-    bin_particles(particles, lengths, n_bins, center)
+    box = particles.get_bounding_box()
+    bin_particles(particles, box.lengths, n_bins, box.center)
 
 
-def bin_bounding_box_by_max_radius(particles):
+def bin_bounding_box_by_max_radius(particles: ParticleContainer) -> None:
     """Bin the particles based on maximal radius.
 
     Args:
-        particles (ParticleContainer): Particles to be binned
+        particles: Particles to be binned
     """
-    center, lengths = get_bounding_box(particles.position)
+    box = particles.get_bounding_box()
     max_radius = np.max(particles.radius)
-    n_bins = (lengths // max_radius + 1).astype(int)
-    lengths = n_bins * max_radius
-    return bin_particles(particles, lengths, n_bins, center)
+    n_bins = (box.lengths // max_radius + 1).astype(int)
+    box.lengths = n_bins * max_radius
+    return bin_particles(particles, box.lengths, n_bins, box.center)

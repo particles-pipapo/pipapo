@@ -1,88 +1,112 @@
 """Voxel container."""
 
-import warnings
-from collections.abc import Iterable
-from functools import partial
-from multiprocessing import Pool
+from __future__ import annotations
+
+import pathlib
+from typing import TYPE_CHECKING, Any, Generic, NotRequired, Self, TypedDict
 
 import meshio
 import numpy as np
 import pyvista as pv
 
-from pipapo.utils.dataclass import NumpyContainer
-from pipapo.utils.io import export, pathify
+from pipapo.utils.container import Container, D
+from pipapo.utils.domain import Box
+from pipapo.utils.io import export
+from pipapo.utils.type_hinting import float_np_array, int_np_array
 
-pv.set_plot_theme("document")
+if TYPE_CHECKING:
+    from pipapo.particles import ParticleContainer
+
+pv.set_plot_theme("document")  # type: ignore[no-untyped-call]
 
 
-class VoxelContainer(NumpyContainer):
+class VoxelProperties(TypedDict):
+    """Voxel properties.
+
+    Attributes:
+        index: Index of the voxel in the box grid
+        position: Voxel position
+    """
+
+    index: list[int]
+    position: NotRequired[float_np_array]
+
+
+class VoxelContainer(Container[VoxelProperties, D], Generic[D]):
     """Voxel container."""
 
-    def __init__(
-        self, center, lengths, voxel_size, n_voxels_dim, *field_names, **fields
+    def __init__(  # pylint: disable=too-many-positional-arguments
+        self,
+        box: Box,
+        voxel_size: float,
+        n_voxels_dim: int_np_array,
+        index: list[int],
+        data: D | None = None,
     ):
         """Initialise voxel container.
 
+        Assumes an axis-aligned box domain discretized into voxels of equal size.
+
         Args:
-            center (np.ndarray): Center of the box
-            lengths (np.ndarray): Lengths of the box
-            voxel_size (float): Voxel size
-            n_voxel_dim (np.ndarray): Number of voxels per dimension
-            add_centers (bool, optional): Compute the cell centers. Defaults to True.
-            field_names (list): Field names list
-            fields (dict): Dictionary with field names and values.
+            box: Box of the voxels
+            voxel_size Voxel size
+            n_voxel_dim: Number of voxels per dimension
+            index: Indices of the voxels
+            data: voxel data
         """
-        self.center = center
-        self.lengths = lengths
+        self.box = box
         self.voxel_size = voxel_size
         self.n_voxels_dim = n_voxels_dim
         self.voxel_volume = self.voxel_size * self.voxel_size * self.voxel_size
-        super().__init__(*field_names, **fields)
 
-    @classmethod
-    def from_box_and_voxel_size(cls, center, lengths, voxel_size, add_centers=True):
-        """Create empty voxel container from a box and voxel_size.
+        super().__init__(VoxelProperties(index=index), data)
 
-        Note that be domain might be slightly bigger as all the voxels are equal sized.
+    @property
+    def index(self) -> list[int]:
+        """Index."""
+        self._check_lens()
+        return self._properties["index"]
 
-        Args:
-            center (np.ndarray): Center of the box
-            lengths (np.ndarray): Lengths of the box
-            voxel_size (float): Voxel size
-            add_centers (bool, optional): Compute the cell centers. Defaults to True.
+    @index.setter
+    def index(self, new_index: list[int]) -> None:
+        """Index."""
+        self._properties["index"] = new_index
+        self._check_lens()
+
+    @property
+    def position(self) -> float_np_array:
+        """Position."""
+        self._check_lens()
+        if "position" not in self._properties:
+            self._create_voxel_centers()
+        return self._properties["position"]
+
+    @position.setter
+    def position(self, new_position: float_np_array) -> None:
+        """Position."""
+        self._properties["position"] = new_position
+        self._check_lens()
+
+    def get_porosity(self) -> float:
+        """Get porosity.
 
         Returns:
-            VoxelContainer: initialized voxel container
+            porosity
         """
-        n_voxels_dim = round_up_division(lengths, voxel_size)
-        voxel_container = cls(
-            center=center,
-            lengths=lengths,
-            voxel_size=voxel_size,
-            n_voxels_dim=n_voxels_dim,
-        )
+        porosity = 1 - self.volume_of_voxels() / self.volume_of_outer_domain()
+        return porosity
 
-        # Add the voxel centers if desired
-        if add_centers:
-            voxel_container.id = np.arange(
-                voxel_container.total_number_of_voxels_in_outer_domain()
-            ).reshape(-1, 1)
-            voxel_container.add_voxel_centers()
-
-        return voxel_container
-
-    def __str__(self):
+    def __str__(self) -> str:
         """Voxel container descriptions."""
-        string = "\npipapo voxel set\n"
-        string += f"  with {len(self)} voxels\n"
-        string += f"  with center {self.center}\n"
-        string += f"  with lengths {self.lengths}\n"
-        string += f"  with voxel size {self.voxel_size}\n"
-        string += f"  with number of voxel per dim {self.n_voxels_dim}\n"
-        string += f"  with fields: {', '.join(list(self.field_names))}"
+        string = super().__str__()
+        string += "\n Domain:"
+        string += f"\n   with center {self.box.center}\n"
+        string += f"\n   with lengths {self.box.lengths}\n"
+        string += f"\n   with voxel size {self.voxel_size}\n"
+        string += f"\n   with number of voxel per dim {self.n_voxels_dim}\n"
         return string
 
-    def volume_of_voxels(self):
+    def volume_of_voxels(self) -> float:
         """Sum of all voxels with the discretized domain.
 
         Returns:
@@ -90,7 +114,7 @@ class VoxelContainer(NumpyContainer):
         """
         return self.voxel_volume * len(self)
 
-    def total_number_of_voxels_in_outer_domain(self):
+    def total_number_of_voxels_in_outer_domain(self) -> int:
         """Get total number of voxels within the outer domain.
 
         Returns:
@@ -98,7 +122,7 @@ class VoxelContainer(NumpyContainer):
         """
         return int(self.n_voxels_dim[0] * self.n_voxels_dim[1] * self.n_voxels_dim[2])
 
-    def volume_of_outer_domain(self):
+    def volume_of_outer_domain(self) -> float:
         """Return volume of total domain.
 
         Returns:
@@ -106,39 +130,36 @@ class VoxelContainer(NumpyContainer):
         """
         return self.voxel_volume * self.total_number_of_voxels_in_outer_domain()
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         """Create dictionary from voxels.
 
         Returns:
             dict: dictionary
         """
         dictionary = super().to_dict()
-        dictionary["voxel_size"] = np.ones(self.id.shape) * self.voxel_size
+        dictionary["voxel_size"] = np.ones(len(self.index)) * self.voxel_size
         return dictionary
 
-    def add_voxel_centers(self):
+    def _create_voxel_centers(self) -> None:
         """Add voxel centers to fields."""
         voxel_positions = []
-        for c in self.id:
+        for c in self.index:
             x, y, z = reverse_running_index(c, self.n_voxels_dim)
             center_voxel = (
-                self.center
-                - 0.5 * self.lengths
+                self.box.center
+                - 0.5 * self.box.lengths
                 + (np.array([x, y, z]) + 0.5) * self.voxel_size
             )
             voxel_positions.append(center_voxel)
-        self.add_field("position", np.array(voxel_positions))
+        self._properties["position"] = np.array(voxel_positions)
 
-    def export(self, file_path):
+    def export(self, file_path: pathlib.Path | str) -> None:
         """Export voxels.
 
         Args:
-            file_path (pathlib.Path): Path to be exported
+            file_path: to be exported
         """
-        if not hasattr(self, "position"):
-            self.add_voxel_centers()
-
-        file_path = pathify(file_path)
+        file_path = pathlib.Path(file_path)
         if file_path.suffix == ".vtu":
             self._export_vtu(file_path)
         else:
@@ -147,15 +168,14 @@ class VoxelContainer(NumpyContainer):
                 file_path,
             )
 
-    def _export_vtu(self, file_path):
+    def _export_vtu(self, file_path: pathlib.Path | str) -> None:
         """Create hexahedrons and export as vtu.
 
         Note that notes will appear multiple times.
 
         Args:
-            file_path (pathlib.Path): Path to file.
+            file_path: to file.
         """
-
         # meshio hexahedron definition
         ref_coordinates = np.array(
             [
@@ -194,229 +214,179 @@ class VoxelContainer(NumpyContainer):
         # export the mesh
         mesh.write(file_path)
 
-    def get_pv_cubes(self, field_name=None):
-        """Get pyvista cubes.
-
-        Returns:
-            list: List of all the pyvista cubes.
-        """
-        voxels = []
-        for i in range(len(self)):
-            cube = pv.Cube(
-                center=self.position[i],
-                x_length=self.voxel_size,
-                y_length=self.voxel_size,
-                z_length=self.voxel_size,
-            )
-            if field_name:
-                cube["Data"] = np.ones(len(cube.points)) * getattr(self, field_name)[i]
-            voxels.append(cube)
-        return voxels
-
-    def reset_ids(self):
-        """Reset ids."""
-        warnings.warn("You can not reset ids of voxel containers!")
-
-    def plot(self, pv_plotter=None, show=True, field_name=None, force=False, **kwargs):
+    def plot(
+        self,
+        pv_plotter: pv.Plotter | None = None,
+        show: bool = True,
+        field_name: str | None = None,
+        force: bool = False,
+        **kwargs: Any,
+    ) -> pv.Plotter:
         """Plot voxels.
 
         Args:
-            pv_plotter (pv.Plotter, optional): Plotter object to plot. Defaults to None.
-            show (bool, optional): Open the plotting window. Defaults to True.
-            field_name (str,optional): Field to plot. Defaults to None
-            force (bool,optional): Force plotting also for large sets. Defaults to None
-            kwargs (dict): additional keyword arguments for add_mesh
+            pv_plotter:Plotter object to plot. Defaults to None.
+            show:Open the plotting window. Defaults to True.
+            field_name:Field to plot. Defaults to None
+            force:Force plotting also for large sets. Defaults to None
+            kwargs :additional keyword arguments for add_mesh
 
         Returns:
             pv.Plotter: Plotter object
         """
         if not force:
             if len(self) > 2000:
-                warnings.warn(
+                raise ValueError(
                     "You are trying to plot a large voxel set. If you really want to do this add"
                     " the kwarg force=True."
                 )
-                return
-
-        if not hasattr(self, "position"):
-            self.add_voxel_centers()
 
         if not pv_plotter:
             pv_plotter = pv.Plotter()
 
-        if not "color" in kwargs and not field_name:
+        if "color" not in kwargs and not field_name:
             kwargs["color"] = kwargs.get("color", "purple")
 
         kwargs["show_edges"] = kwargs.get("show_edges", True)
 
-        for voxel in self.get_pv_cubes(field_name):
-            pv_plotter.add_mesh(voxel, scalar_bar_args={"title": field_name}, **kwargs)
+        cube = pv.Cube()
+
+        voxels = pv.PolyData(self.position)
+        voxels.point_data["diameter"] = np.ones(len(self.position)) * self.voxel_size
+
+        voxels_glyph = voxels.glyph(scale="diameter", geom=cube)
+
+        pv_plotter.add_mesh(voxels_glyph, scalars=field_name)
 
         if show:
             pv_plotter.show()
 
         return pv_plotter
 
-    def _get_multiple_items(self, data):
-        return type(self)(
-            self.center, self.lengths, self.voxel_size, self.n_voxels_dim, **data
-        )
-
     @classmethod
     def from_particles(
         cls,
-        particles,
-        center=None,
-        lengths=None,
-        voxel_size=None,
-        n_voxels_dim=None,
-        n_threads=1,
-    ):
+        particles: ParticleContainer,
+        box: Box,
+        voxel_size: float | None = None,
+        n_voxels_dim: int_np_array | None = None,
+    ) -> VoxelContainer:
         """Voxelize particles.
 
         Args:
             particles (pipapo.ParticleContainer): particles to be voxelized
-            center (np.ndarray): center of outer domain. Defaults to the center of the bounding box
-                                 of the particle container
-            lengths (np.ndarray): lengths of outer domain. Defaults to the lengths of the bounding
-                                  box of the particle container
-            voxel_size (float): voxel size. defaults to a quarter of the smallest radius of the
-                                particles
-            n_voxels_dim (np.ndarray): voxels per dimension. Defaults to the number of voxels that
-                                       fit in a length of the bounding box of the container
-            n_threads (float): threads to parallelize the calculation of the voxels
-            return_all (bool): Return all the information of the voxels. Defaults to False
+            box: Box of the voxels
+            voxel_size Voxel size
+            n_voxel_dim: Number of voxels per dimension
         Returns:
             VoxelContainer: voxel container from particles
         """
-
-        if center is None and lengths is None:
-            center, lengths = particles.bounding_box()
-
         if voxel_size is None:
             voxel_size = float(min(particles.radius) / 4)
 
         if n_voxels_dim is None:
-            n_voxels_dim = round_up_division(lengths, voxel_size)
+            n_voxels_dim = round_up_division(box.lengths, voxel_size)
 
-        if n_threads > 1:
-            voxel_ids = _parallel_voxelize_particlecontainer(
-                particles, center, lengths, voxel_size, n_voxels_dim, n_threads
-            )
-        else:
-            voxel_ids = _voxelize_particlecontainer(
-                particles, center, lengths, voxel_size, n_voxels_dim
-            )
-        voxel_ids = np.array(list(voxel_ids)).reshape(-1, 1)
-        return cls(center, lengths, voxel_size, n_voxels_dim, id=voxel_ids)
+        voxel_ids = _voxelize_particlecontainer(
+            particles.position,
+            particles.radius,
+            box.center,
+            box.lengths,
+            voxel_size,
+            n_voxels_dim,
+        )
+        return cls(
+            box,
+            voxel_size,
+            n_voxels_dim,
+            index=voxel_ids,
+            data={},  # type: ignore[arg-type]
+        )
+
+    @classmethod
+    def create_new_instance(
+        cls, properties: VoxelProperties, data: D, additional_properties: dict
+    ) -> Self:
+        """Create new voxel properties instance.
+
+        Args:
+            properties: Voxel properties
+            data: Data
+            additional_properties: Additional properties which might be constant
+
+        Returns:
+            new instance
+        """
+        properties = properties.copy()
+        properties.pop("position", None)
+        return cls(**properties, data=data, **additional_properties)  # type: ignore[misc]
+
+    def _additional_properties(self) -> dict:
+        """Return additional properties.
+
+        Returns:
+            Additional data
+        """
+        return {
+            "box": self.box,
+            "voxel_size": self.voxel_size,
+            "n_voxels_dim": self.n_voxels_dim,
+        }
 
 
-def _voxelize_particlecontainer(particles, center, lengths, voxel_size, n_voxels_dim):
+def _voxelize_particlecontainer(  # pylint: disable=too-many-arguments
+    position: float_np_array,
+    radius: float_np_array,
+    center: float_np_array,
+    lengths: float_np_array,
+    voxel_size: float,
+    n_voxels_dim: int_np_array,
+) -> list[int]:
     """Voxelize particles.
+
     Args:
         particles (pipapo.ParticleContainer): particles to be voxelized
-        center (np.ndarray): center of outer domain
-        lengths (np.ndarray): lengths of outer domain
-        voxel_size (float): voxel size
-        n_voxels_dim (np.ndarray): voxels per dimension
+        center: center of outer domain
+        lengths: lengths of outer domain
+        voxel_size voxel size
+        n_voxels_dim: voxels per dimension
     Returns:
         set: set of indices of the voxels
     """
     outer_left_boundary = center - lengths * 0.5
     voxel_ids = set()
-    for particle in particles:
+    for p, r in zip(position, radius):
         voxels_in_particle_ids = voxelize_particle(
-            particle.position,
-            particle.radius,
+            p,
+            r,
             outer_left_boundary,
             voxel_size,
             n_voxels_dim,
         )
         voxel_ids.update(voxels_in_particle_ids)
-    return voxel_ids
+    return list(voxel_ids)
 
 
-def _parallel_voxelize_particlecontainer(
-    particles, center, lengths, voxel_size, n_voxels_dim, n_threads
-):
-    """Voxelize particles.
-    Args:
-        particles (pipapo.ParticleContainer): particles to be voxelized
-        center (np.ndarray): center of outer domain
-        lengths (np.ndarray): lengths of outer domain
-        voxel_size (float): voxel size
-        n_voxels_dim (np.ndarray): voxels per dimension
-        n_threads (float): threads to parallelize the calculation of the voxels
-    Returns:
-        set: set of indices of the voxels
-    """
-    voxel_ids = set()
-    with Pool(n_threads) as pool:
-        voxel_ids = pool.starmap(
-            partial(
-                _voxelize_particlecontainer,
-                center=center,
-                lengths=lengths,
-                voxel_size=voxel_size,
-                n_voxels_dim=n_voxels_dim,
-            ),
-            chunkify(particles, n_threads),
-        )
-    voxel_ids = set().union(*voxel_ids)
-    return voxel_ids
-
-
-def chunkify(indexable_object, number_of_chunks):
-    """Create particles chunks
-
-    Args:
-        indexable_object (obj): Object that can be indexed
-        number_of_chunks (int): number of chunks to be split up
-
-    Returns:
-        list: chunks of indexable_object
-    """
-    chunks = []
-    n_particles = len(indexable_object)
-    rounded_particles_per_chunk = n_particles // number_of_chunks
-
-    # divide rounded_particles_per_chunk sized sets
-    for i in range(0, number_of_chunks - 1):
-        chunks.append(
-            indexable_object[
-                i * rounded_particles_per_chunk : (i + 1) * rounded_particles_per_chunk
-            ]
-        )
-
-    # like in a bar, the last has to pay extra
-    chunks.append(
-        indexable_object[
-            (number_of_chunks - 1) * rounded_particles_per_chunk : n_particles
-        ]
-    )
-    return chunks
-
-
-def round_up_division(a, b):
+def round_up_division(a: float_np_array, b: float) -> int_np_array:
     """Divide and round up.
 
     Args:
         a (int,np.ndarray): numerator
         b (int,np.ndarray): denominator
     Returns:
-        np.ndarray: rounded up division
+        rounded up division
     """
     return np.ceil(a / b).astype(int)
 
 
-def running_index(i, j, k, n_dim):
+def running_index(i: int, j: int, k: int, n_dim: int_np_array) -> int:
     """Generate running index for 3d matrix.
 
     Args:
-        i (int): first index
-        j (int): second index
-        k (int): third index
-        n_dim (np.ndarray): length per dimension
+        i first index
+        j second index
+        k third index
+        n_dim: length per dimension
 
     Returns:
         int: running index
@@ -424,12 +394,12 @@ def running_index(i, j, k, n_dim):
     return int(i + j * n_dim[0] + k * n_dim[0] * n_dim[1])
 
 
-def reverse_running_index(c, n_dim):
+def reverse_running_index(c: int, n_dim: int_np_array) -> tuple[int, int, int]:
     """Reverse running index c to ijk.
 
     Args:
-        c (int): running index
-        n_dim (int): length per dimension
+        c running index
+        n_dim length per dimension
     Returns:
         (int,int,int): indices i,j,k
     """
@@ -442,12 +412,12 @@ def reverse_running_index(c, n_dim):
 
 
 def voxelize_particle(
-    particle_center,
-    particle_radius,
-    outer_left_boundary,
-    voxel_size,
-    n_voxels_dim,
-):
+    particle_center: float_np_array,
+    particle_radius: float_np_array,
+    outer_left_boundary: float_np_array,
+    voxel_size: float,
+    n_voxels_dim: int_np_array,
+) -> list[int]:
     """Get voxels for a single particle.
 
     The domain is given by `outer_left_boundary` which is the vertex of the domain with the
@@ -459,11 +429,11 @@ def voxelize_particle(
       2. Loop through the voxels of the rastered bounding box
 
     Args:
-        particle_center (np.ndarray): particle center
-        particle_radius (float): particle radius
-        outer_left_boundary (np.ndarray): vertex of outer box with smallest coordinates
-        voxel_size (float): voxel size
-        n_voxels_dim (np.ndarray): voxels per dimension
+        particle_center: particle center
+        particle_radius particle radius
+        outer_left_boundary: vertex of outer box with smallest coordinates
+        voxel_size voxel size
+        n_voxels_dim: voxels per dimension
 
     Returns:
         list: list of indices for voxels within the particle

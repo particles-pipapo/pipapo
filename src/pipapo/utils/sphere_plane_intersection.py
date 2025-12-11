@@ -2,124 +2,111 @@
 
 import numpy as np
 
+from pipapo.utils.type_hinting import float_np_array
+
 
 def get_sphere_plane_intersection_data(
-    center_i, radius_i, plane_point, plane_normal, return_area=False
-):
+    center_i: float_np_array,
+    radius_i: float,
+    center_to_plane_signed_distance: float,
+    plane_normal: float_np_array,
+) -> tuple[float, float_np_array, float_np_array]:
     """Get all the data relevant for sphere-plane intersection.
 
     Args:
-        center_i (np.ndarray): Center of particle i
-        radius_i (np.ndarray): Radius of particle i
-        plane_point (np.ndarray): Point on the plane to define the wall
-        plane_normal (np.ndarray): Plane normal POINTING INWARDS to the domain
-        return_area (bool, optional): Return interface area
+        center_i: Center of particle i
+        radius_i: Radius of particle i
+        center_to_plane_signed_distance: Distance from center to plane
+        plane_normal: Unit plane normal
 
     Returns:
-        interface_radius (float): Interface radius
-        interface_normal (np.ndarray): Interface normal
-        interface_center (np.ndarray): Interface center
-        interface_area (float): Interface area if return area is True
+        interface_radius: Interface radius
+        interface_normal: Interface normal
+        interface_center: Interface center
     """
-    center_to_plane_point = get_center_to_plane_point(center_i, plane_point)
-    center_to_plane_distance = get_center_to_plane_distance(
-        center_to_plane_point, plane_normal
+    interface_normal = np.sign(center_to_plane_signed_distance) * plane_normal
+
+    interface_radius = get_interface_radius(center_to_plane_signed_distance, radius_i)
+
+    interface_center = (
+        center_i + np.abs(center_to_plane_signed_distance) * interface_normal
     )
-
-    interface_area = get_interface_area(center_to_plane_distance, radius_i)
-    center_to_plane = get_center_to_plane(center_to_plane_distance, plane_normal)
-
-    interface_radius, interface_center = get_interface_position_and_size(
-        center_to_plane, interface_area, center_i
-    )
-
-    interface_normal = -plane_normal
-    if return_area:
-        return interface_radius, interface_normal, interface_center, interface_area
 
     return interface_radius, interface_normal, interface_center
 
 
-def get_center_to_plane_point(center_i, plane_point):
+def get_center_to_plane_point(
+    center_i: float_np_array, plane_point: float_np_array
+) -> float_np_array:
     """Get vector from particle to plane point.
 
     Args:
-        center_i (np.ndarray): Center of particle i
-        plane_point (np.ndarray): Point on the plane to define the wall
+        center_i: Center of particle i
+        plane_point: Point on the plane to define the wall
 
     Returns:
-        np.ndarray: Vector from center to plane
+        Vector from center to plane
     """
     return plane_point - center_i
 
 
-def get_center_to_plane(center_to_plane_distance, plane_normal):
+def get_center_to_plane(
+    center_to_plane_distance: float, plane_normal: float_np_array
+) -> float_np_array:
     """Get the vector from center to plane.
 
     Args:
-        center_to_plane_distance (float): Shortest distance from center to wall
-        plane_normal (np.ndarray): Plane normal POINTING INWARDS to the domain
+        center_to_plane_distance: Shortest distance from center to wall
+        plane_normal: Plane normal POINTING OUTWARDS to the domain
 
     Returns:
-        np.ndarray: Vector from center to interface center
+        Vector from center to interface center
     """
-    return -center_to_plane_distance * plane_normal
+    return center_to_plane_distance * plane_normal
 
 
-def get_center_to_plane_distance(center_to_plane_point, plane_normal):
-    """Distance from center to plane.
+def get_center_to_plane_signed_distance(
+    center_i: float_np_array, plane_point: float_np_array, plane_normal: float_np_array
+) -> float:
+    """Signed distance from center to plane.
+
+    A positive sign indicates the same direction as the plane normal.
 
     Args:
-        center_to_plane_point (np.ndarray): Vector from center to plane point
-        plane_normal (np.ndarray): Plane normal POINTING INWARDS to the domain
+        center_to_plane_point: Vector from center to plane point
+        plane_normal: Plane normal POINTING INWARDS to the domain
 
     Returns:
         float: Shortest distance between center and plane
     """
-    return np.abs(center_to_plane_point @ plane_normal)
+    center_to_plane_point = get_center_to_plane_point(center_i, plane_point)
+    return np.sum(center_to_plane_point * plane_normal)
 
 
-def get_interface_area(center_to_plane_distance, radius_i):
-    """Get interface area.
+def get_interface_radius(center_to_plane_distance: float, radius_i: float) -> float:
+    """Get interface radius.
 
     Args:
-        center_to_plane_distance (float): Distance from center to plane
-        radius_i (np.ndarray): Radius of particle i
+        center_to_plane_distance: Distance from center to plane
+        radius_i: Radius of particle i
 
     Returns:
         float: area of the interface
     """
-    squared_interface_radius = radius_i**2 - center_to_plane_distance**2
-    return np.pi * squared_interface_radius
+    return np.sqrt(
+        radius_i * radius_i - center_to_plane_distance * center_to_plane_distance
+    )
 
 
-def get_interface_position_and_size(center_to_plane, interface_area, center_i):
-    """Compute the position, normal and radius of the interface.
-
-    Args:
-        center_to_plane (np.ndarray): Vector from center to interface center
-        interface_area (float): Area of the interface
-        center_i (np.ndarray): Center of particle i
-
-    Returns:
-        interface_radius (float): Radius of the interface
-        interface_normal (np.ndarray): Interface normal
-        interface_center (np.ndarray): Interface center
-    """
-    interface_radius = np.sqrt(interface_area / np.pi)
-    interface_center = center_i + center_to_plane
-    return interface_radius, interface_center
-
-
-def get_gap(center_to_plane_distance, radius_i):
+def get_gap(signed_center_to_plane_distance: float, radius_i: float) -> float:
     """Get the gap between sphere and plane.
 
     Args:
-        center_to_plane_distance (float): Distance from center to plane
-        radius_i (np.ndarray): Radius of particle i
+        signed_center_to_plane_distance: Distance from center to plane
+        radius_i: Radius of particle i
 
     Returns:
         float: gap
     """
-    gap = -radius_i + center_to_plane_distance
+    gap = -radius_i + np.abs(signed_center_to_plane_distance)
     return gap
